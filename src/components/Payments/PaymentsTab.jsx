@@ -360,7 +360,10 @@ const PaymentsTab = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           className="card-neu"
+        >
           <div className="flex items-center justify-between">
+
+
             <div>
               <p className="text-sm font-medium text-surface-600">Total Revenue</p>
               <p className="text-2xl font-bold text-green-600">${analytics.totalRevenue.toLocaleString()}</p>
@@ -369,7 +372,8 @@ const PaymentsTab = () => {
               <ApperIcon name="TrendingUp" className="w-6 h-6 text-green-600" />
             </div>
           </div>
-        </motion.div>
+        </div>
+
 
         
         <motion.div
