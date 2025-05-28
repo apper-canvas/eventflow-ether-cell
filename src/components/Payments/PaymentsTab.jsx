@@ -20,6 +20,11 @@ const PaymentsTab = () => {
     getTotalRevenue,
     getOutstandingPayments,
     getOverduePayments
+    processPaymentReceiving,
+    receivePayment,
+
+    receivePayment,
+
   } = usePaymentData()
   
   const [showPaymentForm, setShowPaymentForm] = useState(false)
@@ -33,6 +38,20 @@ const PaymentsTab = () => {
     vendorName: '',
     paymentMethod: ''
   })
+  const [showReceivePayment, setShowReceivePayment] = useState(false)
+
+  const [selectedPayment, setSelectedPayment] = useState(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [receivePaymentData, setReceivePaymentData] = useState({
+    paymentMethod: 'credit_card',
+    cardNumber: '',
+    expiryDate: '',
+    cvv: '',
+    cardholderName: '',
+    amount: '',
+    notes: ''
+  })
+
 
   const handleCreatePayment = (e) => {
     e.preventDefault()
@@ -81,7 +100,50 @@ const PaymentsTab = () => {
       setPayments(prev => prev.filter(payment => payment.id !== paymentId))
       toast.success('Payment record deleted successfully!')
     }
+  const handleReceivePayment = (payment) => {
+    setSelectedPayment(payment)
+    setReceivePaymentData(prev => ({
+      ...prev,
+      amount: payment.amount.toString()
+    }))
+    setShowReceivePayment(true)
   }
+
+  const processPaymentReceival = async (e) => {
+    e.preventDefault()
+    if (!selectedPayment) return
+
+    setIsProcessing(true)
+    try {
+      const result = await receivePayment(
+        selectedPayment.id,
+        receivePaymentData.paymentMethod,
+        {
+          cardNumber: receivePaymentData.cardNumber.slice(-4),
+          cardholderName: receivePaymentData.cardholderName,
+          notes: receivePaymentData.notes
+        }
+      )
+
+      toast.success(`Payment of $${selectedPayment.amount.toLocaleString()} received successfully!`)
+      setShowReceivePayment(false)
+      setSelectedPayment(null)
+      setReceivePaymentData({
+        paymentMethod: 'credit_card',
+        cardNumber: '',
+        expiryDate: '',
+        cvv: '',
+        cardholderName: '',
+        amount: '',
+        notes: ''
+      })
+    } catch (error) {
+      toast.error(error.message || 'Failed to process payment')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
 
   return (
     <motion.div
@@ -345,7 +407,251 @@ const PaymentsTab = () => {
               </form>
             </motion.div>
           </motion.div>
+
+      {/* Receive Payment Modal */}
+      <AnimatePresence>
+        {showReceivePayment && selectedPayment && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+            onClick={() => !isProcessing && setShowReceivePayment(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h4 className="text-2xl font-bold text-surface-900">Receive Payment</h4>
+                <button
+                  onClick={() => !isProcessing && setShowReceivePayment(false)}
+                  disabled={isProcessing}
+                  className="p-2 hover:bg-surface-100 rounded-xl transition-colors disabled:opacity-50"
+                >
+                  <ApperIcon name="X" className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Payment Details */}
+              <div className="payment-card mb-6">
+                <h5 className="text-lg font-semibold text-surface-900 mb-4">Payment Details</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-surface-600">Description:</span>
+                    <p className="font-medium">{selectedPayment.description}</p>
+                  </div>
+                  <div>
+                    <span className="text-surface-600">Amount:</span>
+                    <p className="font-bold text-xl text-green-600">${selectedPayment.amount.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <span className="text-surface-600">Client:</span>
+                    <p className="font-medium">{selectedPayment.clientName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-surface-600">Due Date:</span>
+                    <p className="font-medium">{format(new Date(selectedPayment.dueDate), 'MMM dd, yyyy')}</p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={processPaymentReceival} className="space-y-6">
+                {/* Payment Method Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-4">
+                    Payment Method *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[
+                      { id: 'credit_card', name: 'Credit Card', icon: 'CreditCard' },
+                      { id: 'bank_transfer', name: 'Bank Transfer', icon: 'Building' },
+                      { id: 'paypal', name: 'PayPal', icon: 'Smartphone' },
+                      { id: 'cash', name: 'Cash', icon: 'DollarSign' }
+                    ].map(method => (
+                      <div
+                        key={method.id}
+                        onClick={() => setReceivePaymentData(prev => ({ ...prev, paymentMethod: method.id }))}
+                        className={`payment-method-btn ${
+                          receivePaymentData.paymentMethod === method.id ? 'active' : ''
+                        }`}
+                      >
+                        <ApperIcon name={method.icon} className="w-5 h-5" />
+                        <span className="text-sm font-medium">{method.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Credit Card Details */}
+                {receivePaymentData.paymentMethod === 'credit_card' && (
+                  <div className="space-y-4">
+                    <h6 className="text-lg font-semibold text-surface-900">Card Information</h6>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-surface-700 mb-2">
+                          Cardholder Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={receivePaymentData.cardholderName}
+                          onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cardholderName: e.target.value }))}
+                          className="input-field"
+                          placeholder="John Doe"
+                          required
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-surface-700 mb-2">
+                          Card Number *
+                        </label>
+                        <input
+                          type="text"
+                          value={receivePaymentData.cardNumber}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ')
+                            setReceivePaymentData(prev => ({ ...prev, cardNumber: value }))
+                          }}
+                          className="input-field"
+                          placeholder="1234 5678 9012 3456"
+                          maxLength="19"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-surface-700 mb-2">
+                          Expiry Date *
+                        </label>
+                        <input
+                          type="text"
+                          value={receivePaymentData.expiryDate}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '').replace(/(\d{2})(?=\d)/, '$1/')
+                            setReceivePaymentData(prev => ({ ...prev, expiryDate: value }))
+                          }}
+                          className="input-field"
+                          placeholder="MM/YY"
+                          maxLength="5"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-surface-700 mb-2">
+                          CVV *
+                        </label>
+                        <input
+                          type="text"
+                          value={receivePaymentData.cvv}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '')
+                            setReceivePaymentData(prev => ({ ...prev, cvv: value }))
+                          }}
+                          className="input-field"
+                          placeholder="123"
+                          maxLength="4"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bank Transfer Details */}
+                {receivePaymentData.paymentMethod === 'bank_transfer' && (
+                  <div className="space-y-4">
+                    <h6 className="text-lg font-semibold text-surface-900">Bank Transfer Information</h6>
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                      <h7 className="font-semibold text-blue-900 mb-2 block">Bank Details</h7>
+                      <div className="text-sm text-blue-800 space-y-1">
+                        <p><strong>Account Name:</strong> EventFlow Management Inc.</p>
+                        <p><strong>Account Number:</strong> 1234567890</p>
+                        <p><strong>Routing Number:</strong> 021000021</p>
+                        <p><strong>Bank:</strong> First National Bank</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Amount Confirmation */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
+                    Amount to Receive ($) *
+                  </label>
+                  <input
+                    type="number"
+                    value={receivePaymentData.amount}
+                    onChange={(e) => setReceivePaymentData(prev => ({ ...prev, amount: e.target.value }))}
+                    className="input-field"
+                    placeholder="0.00"
+                    step="0.01"
+                    required
+                  />
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
+                    Notes (Optional)
+                  </label>
+                  <textarea
+                    value={receivePaymentData.notes}
+                    onChange={(e) => setReceivePaymentData(prev => ({ ...prev, notes: e.target.value }))}
+                    className="input-field"
+                    placeholder="Additional notes about this payment..."
+                    rows="3"
+                  />
+                </div>
+
+                {/* Processing Fee Information */}
+                {receivePaymentData.paymentMethod === 'credit_card' && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <ApperIcon name="Info" className="w-5 h-5 text-yellow-600" />
+                      <span className="font-semibold text-yellow-900">Processing Fee Information</span>
+                    </div>
+                    <div className="text-sm text-yellow-800 space-y-1">
+                      <p>Processing Fee (2.9%): ${(parseFloat(receivePaymentData.amount || 0) * 0.029).toFixed(2)}</p>
+                      <p className="font-semibold">Net Amount: ${(parseFloat(receivePaymentData.amount || 0) * 0.971).toFixed(2)}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                  <button
+                    type="submit"
+                    disabled={isProcessing}
+                    className="btn-primary flex-1 disabled:opacity-50 flex items-center justify-center space-x-2"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="processing-spinner" />
+                        <span>Processing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ApperIcon name="Check" className="w-5 h-5" />
+                        <span>Process Payment</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowReceivePayment(false)}
+                    disabled={isProcessing}
+                    className="btn-secondary flex-1 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
         )}
+      </AnimatePresence>
+
       </AnimatePresence>
 
       {/* Payments List */}
@@ -392,6 +698,18 @@ const PaymentsTab = () => {
                       )}
                     </div>
                     <div className="flex space-x-2">
+                      {payment.status === 'pending' && (
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleReceivePayment(payment)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                        >
+                          <ApperIcon name="CreditCard" className="w-4 h-4 mr-1 inline" />
+                          Receive Payment
+                        </motion.button>
+                      )}
+
                       {payment.status !== 'paid' && (
                         <select
                           value={payment.status}

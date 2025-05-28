@@ -70,6 +70,57 @@ export const usePaymentData = () => {
     })
   }
 
+  const processPaymentReceiving = async (paymentData) => {
+    // Simulate payment processing
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        if (Math.random() > 0.1) { // 90% success rate
+          resolve({
+            success: true,
+            transactionId: `TXN-${Date.now()}`,
+            processingFee: paymentData.amount * 0.029, // 2.9% processing fee
+            netAmount: paymentData.amount * 0.971
+          })
+        } else {
+          reject(new Error('Payment processing failed. Please try again.'))
+        }
+      }, 2000) // 2 second processing time
+    })
+  }
+
+  const receivePayment = async (paymentId, paymentMethod, receiptData) => {
+    try {
+      const payment = payments.find(p => p.id === paymentId)
+      if (!payment) throw new Error('Payment not found')
+
+      const result = await processPaymentReceiving({
+        amount: payment.amount,
+        method: paymentMethod
+      })
+
+      setPayments(prev => prev.map(p => {
+        if (p.id === paymentId) {
+          return {
+            ...p,
+            status: 'paid',
+            paidDate: new Date(),
+            paymentMethod,
+            transactionId: result.transactionId,
+            processingFee: result.processingFee,
+            netAmount: result.netAmount,
+            receiptData
+          }
+        }
+        return p
+      }))
+
+      return result
+    } catch (error) {
+      throw error
+    }
+  }
+
+
   return {
     payments,
     setPayments,
@@ -80,6 +131,10 @@ export const usePaymentData = () => {
     filteredPayments,
     getTotalRevenue,
     getOutstandingPayments,
-    getOverduePayments
+    getOverduePayments,
+
+    processPaymentReceiving,
+    receivePayment,
+
   }
 }

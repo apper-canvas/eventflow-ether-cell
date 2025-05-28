@@ -39,6 +39,27 @@
   
   .gradient-text {
     @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
+  
+  .payment-card {
+    @apply bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 shadow-soft hover:shadow-card transition-all duration-300;
+  }
+  
+  .payment-method-btn {
+    @apply flex items-center justify-center space-x-3 w-full p-4 border-2 border-surface-200 rounded-xl hover:border-primary hover:bg-primary/5 transition-all duration-300 cursor-pointer;
+  }
+  
+  .payment-method-btn.active {
+    @apply border-primary bg-primary/10 text-primary;
+  }
+  
+  .receipt-container {
+    @apply bg-white border-2 border-dashed border-surface-300 rounded-xl p-6 space-y-4;
+  }
+  
+  .processing-spinner {
+    @apply animate-spin rounded-full h-8 w-8 border-b-2 border-primary;
+  }
+
   }
 }
 
