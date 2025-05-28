@@ -122,6 +122,8 @@ export const usePaymentData = () => {
         }
       }, 2000) // 2 second processing time
     })
+  }
+
 
   const processVendorPayment = async (paymentData) => {
     // Simulate vendor payment processing
@@ -173,7 +175,6 @@ export const usePaymentData = () => {
     }
   }
 
-  }
 
   const receivePayment = async (paymentId, paymentMethod, receiptData) => {
     try {
