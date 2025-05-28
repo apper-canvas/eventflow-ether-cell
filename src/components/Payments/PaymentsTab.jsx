@@ -102,6 +102,7 @@ const PaymentsTab = () => {
 
 
 
+
   const handleReceivePayment = (payment) => {
     setSelectedPayment(payment)
     setReceivePaymentData(prev => ({
@@ -409,6 +410,8 @@ const PaymentsTab = () => {
               </form>
             </motion.div>
           </motion.div>
+      </AnimatePresence>
+
         )}
 
 
@@ -761,6 +764,8 @@ const PaymentsTab = () => {
         </div>
       </div>
     </motion.div>
+  
+
   )
 }
 
