@@ -19,11 +19,8 @@ const PaymentsTab = () => {
     filteredPayments,
     getTotalRevenue,
     getOutstandingPayments,
-    getOverduePayments
-    processPaymentReceiving,
-    receivePayment,
+    getOverduePayments,
 
-    receivePayment,
 
   } = usePaymentData()
   
@@ -99,7 +96,11 @@ const PaymentsTab = () => {
     if (window.confirm('Are you sure you want to delete this payment record?')) {
       setPayments(prev => prev.filter(payment => payment.id !== paymentId))
       toast.success('Payment record deleted successfully!')
-    }
+  }
+  }
+
+
+
   const handleReceivePayment = (payment) => {
     setSelectedPayment(payment)
     setReceivePaymentData(prev => ({
@@ -407,6 +408,7 @@ const PaymentsTab = () => {
               </form>
             </motion.div>
           </motion.div>
+      </motion.div>
 
       {/* Receive Payment Modal */}
       <AnimatePresence>
@@ -652,7 +654,6 @@ const PaymentsTab = () => {
         )}
       </AnimatePresence>
 
-      </AnimatePresence>
 
       {/* Payments List */}
       <div className="card-neu">

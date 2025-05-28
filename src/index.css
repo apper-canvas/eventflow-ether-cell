@@ -39,7 +39,8 @@
   
   .gradient-text {
     @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
-  
+  }
+
   .payment-card {
     @apply bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 shadow-soft hover:shadow-card transition-all duration-300;
   }
