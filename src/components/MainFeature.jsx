@@ -202,7 +202,8 @@ const MainFeature = () => {
                     />
                   </div>
                 </div>
-                </div>
+
+
 
                 
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
@@ -221,7 +222,18 @@ const MainFeature = () => {
                     )}
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => setShowEventForm(false)}
+                    className="btn-secondary flex-1"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </form>
+
+
+
             </motion.div>
           </motion.div>
         )}
