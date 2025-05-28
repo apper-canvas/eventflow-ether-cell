@@ -22,6 +22,7 @@ const Dashboard = () => {
     const totalRevenue = getTotalRevenue()
     const outstandingAmount = getOutstandingPayments()
 
+
     return {
       totalEvents,
       activeEvents,
