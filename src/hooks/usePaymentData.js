@@ -29,8 +29,37 @@ export const usePaymentData = () => {
       clientName: 'Corporate Events Inc.',
       invoiceNumber: 'INV-2024-002',
       createdAt: new Date('2024-01-15')
+    },
+    {
+      id: '3',
+      eventId: '1',
+      type: 'vendor',
+      amount: 5000,
+      description: 'Catering services payment',
+      status: 'pending',
+      dueDate: new Date('2024-01-20'),
+      paidDate: null,
+      paymentMethod: null,
+      vendorName: 'Gourmet Catering Co.',
+      invoiceNumber: null,
+      createdAt: new Date('2024-01-05')
+    },
+    {
+      id: '4',
+      eventId: '1',
+      type: 'vendor',
+      amount: 3500,
+      description: 'Photography services',
+      status: 'paid',
+      dueDate: new Date('2024-01-18'),
+      paidDate: new Date('2024-01-16'),
+      paymentMethod: 'check',
+      vendorName: 'Professional Photos LLC',
+      invoiceNumber: null,
+      createdAt: new Date('2024-01-08')
     }
   ])
+
 
   const [paymentSearch, setPaymentSearch] = useState('')
   const [paymentFilter, setPaymentFilter] = useState({
@@ -57,6 +86,13 @@ export const usePaymentData = () => {
       .filter(payment => payment.type === 'client' && payment.status === 'paid')
       .reduce((sum, payment) => sum + payment.amount, 0)
   }
+
+  const getTotalExpenses = () => {
+    return payments
+      .filter(payment => payment.type === 'vendor' && payment.status === 'paid')
+      .reduce((sum, payment) => sum + payment.amount, 0)
+  }
+
 
   const getOutstandingPayments = () => {
     return payments
@@ -86,6 +122,57 @@ export const usePaymentData = () => {
         }
       }, 2000) // 2 second processing time
     })
+
+  const processVendorPayment = async (paymentData) => {
+    // Simulate vendor payment processing
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        if (Math.random() > 0.05) { // 95% success rate
+          resolve({
+            success: true,
+            transactionId: `VTX-${Date.now()}`,
+            confirmationNumber: `CNF-${Date.now()}`
+          })
+        } else {
+          reject(new Error('Vendor payment processing failed. Please try again.'))
+        }
+      }, 1500) // 1.5 second processing time
+    })
+  }
+
+  const makeVendorPayment = async (paymentId, paymentMethod, paymentData) => {
+    try {
+      const payment = payments.find(p => p.id === paymentId)
+      if (!payment) throw new Error('Payment not found')
+      if (payment.type !== 'vendor') throw new Error('Invalid payment type')
+
+      const result = await processVendorPayment({
+        amount: payment.amount,
+        method: paymentMethod,
+        vendor: payment.vendorName
+      })
+
+      setPayments(prev => prev.map(p => {
+        if (p.id === paymentId) {
+          return {
+            ...p,
+            status: 'paid',
+            paidDate: new Date(),
+            paymentMethod,
+            transactionId: result.transactionId,
+            confirmationNumber: result.confirmationNumber,
+            paymentData
+          }
+        }
+        return p
+      }))
+
+      return result
+    } catch (error) {
+      throw error
+    }
+  }
+
   }
 
   const receivePayment = async (paymentId, paymentMethod, receiptData) => {
@@ -130,11 +217,16 @@ export const usePaymentData = () => {
     setPaymentFilter,
     filteredPayments,
     getTotalRevenue,
+    getTotalExpenses,
     getOutstandingPayments,
     getOverduePayments,
 
+
     processPaymentReceiving,
     receivePayment,
+    processVendorPayment,
+    makeVendorPayment,
+
 
   }
 }

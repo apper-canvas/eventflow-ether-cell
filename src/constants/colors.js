@@ -43,6 +43,11 @@ export const paymentStatusColors = {
 }
 
 export const paymentTypeColors = {
-  client: 'bg-blue-100 text-blue-800',
-  vendor: 'bg-purple-100 text-purple-800'
+  client: 'bg-green-100 text-green-800', // Incoming money
+  vendor: 'bg-orange-100 text-orange-800'  // Outgoing money
+}
+
+export const paymentDirectionColors = {
+  incoming: 'bg-green-100 text-green-800 border-green-200',
+  outgoing: 'bg-orange-100 text-orange-800 border-orange-200'
 }

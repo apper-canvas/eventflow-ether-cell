@@ -5,7 +5,8 @@ import { toast } from 'react-toastify'
 import ApperIcon from '../ApperIcon'
 import { usePaymentData } from '../../hooks/usePaymentData'
 import { useEventData } from '../../hooks/useEventData'
-import { paymentStatusColors, paymentTypeColors } from '../../constants/colors'
+import { paymentStatusColors, paymentTypeColors, paymentDirectionColors } from '../../constants/colors'
+
 
 const PaymentsTab = () => {
   const { events } = useEventData()
@@ -18,10 +19,13 @@ const PaymentsTab = () => {
     setPaymentFilter,
     filteredPayments,
     getTotalRevenue,
+    getTotalExpenses,
     getOutstandingPayments,
     getOverduePayments,
-    receivePayment
+    receivePayment,
+    makeVendorPayment
   } = usePaymentData()
+
 
   const [showPaymentForm, setShowPaymentForm] = useState(false)
   const [newPayment, setNewPayment] = useState({
@@ -46,6 +50,19 @@ const PaymentsTab = () => {
     amount: '',
     notes: ''
   })
+
+  const [showMakePayment, setShowMakePayment] = useState(false)
+  const [makePaymentData, setMakePaymentData] = useState({
+    paymentMethod: 'bank_transfer',
+    checkNumber: '',
+    accountNumber: '',
+    routingNumber: '',
+    bankName: '',
+    amount: '',
+    notes: ''
+  })
+  const [isMakingPayment, setIsMakingPayment] = useState(false)
+
 
   const handleCreatePayment = (e) => {
     e.preventDefault()
@@ -97,6 +114,10 @@ const PaymentsTab = () => {
   }
 
   const handleReceivePayment = (payment) => {
+    if (payment.type !== 'client') {
+      toast.error('Only client payments can be received')
+      return
+    }
     setSelectedPayment(payment)
     setReceivePaymentData(prev => ({
       ...prev,
@@ -104,6 +125,20 @@ const PaymentsTab = () => {
     }))
     setShowReceivePayment(true)
   }
+
+  const handleMakePayment = (payment) => {
+    if (payment.type !== 'vendor') {
+      toast.error('Only vendor payments can be made')
+      return
+    }
+    setSelectedPayment(payment)
+    setMakePaymentData(prev => ({
+      ...prev,
+      amount: payment.amount.toString()
+    }))
+    setShowMakePayment(true)
+  }
+
 
   const processPaymentReceival = async (e) => {
     e.preventDefault()
@@ -138,7 +173,44 @@ const PaymentsTab = () => {
     } finally {
       setIsProcessing(false)
     }
+
+  const processMakePayment = async (e) => {
+    e.preventDefault()
+    if (!selectedPayment) return
+
+    setIsMakingPayment(true)
+    try {
+      const result = await makeVendorPayment(
+        selectedPayment.id,
+        makePaymentData.paymentMethod,
+        {
+          checkNumber: makePaymentData.checkNumber,
+          accountNumber: makePaymentData.accountNumber,
+          routingNumber: makePaymentData.routingNumber,
+          bankName: makePaymentData.bankName,
+          notes: makePaymentData.notes
+        }
+      )
+
+      toast.success(`Payment of $${selectedPayment.amount.toLocaleString()} made to ${selectedPayment.vendorName} successfully!`)
+      setShowMakePayment(false)
+      setSelectedPayment(null)
+      setMakePaymentData({
+        paymentMethod: 'bank_transfer',
+        checkNumber: '',
+        accountNumber: '',
+        routingNumber: '',
+        bankName: '',
+        amount: '',
+        notes: ''
+      })
+    } catch (error) {
+      toast.error(error.message || 'Failed to process vendor payment')
+    } finally {
+      setIsMakingPayment(false)
+    }
   }
+
 
   return (
     <motion.div
@@ -161,7 +233,8 @@ const PaymentsTab = () => {
       </div>
 
       {/* Payment Analytics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Payment Analytics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -169,7 +242,7 @@ const PaymentsTab = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-surface-600 mb-1">Total Revenue</p>
+              <p className="text-sm text-surface-600 mb-1">Revenue (Received)</p>
               <p className="text-2xl font-bold text-green-600">${getTotalRevenue().toLocaleString()}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
@@ -186,6 +259,23 @@ const PaymentsTab = () => {
         >
           <div className="flex items-center justify-between">
             <div>
+              <p className="text-sm text-surface-600 mb-1">Expenses (Paid)</p>
+              <p className="text-2xl font-bold text-orange-600">${getTotalExpenses().toLocaleString()}</p>
+            </div>
+            <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+              <ApperIcon name="TrendingDown" className="w-6 h-6 text-orange-600" />
+            </div>
+          </div>
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="card-neu"
+        >
+          <div className="flex items-center justify-between">
+            <div>
               <p className="text-sm text-surface-600 mb-1">Outstanding</p>
               <p className="text-2xl font-bold text-yellow-600">${getOutstandingPayments().toLocaleString()}</p>
             </div>
@@ -198,7 +288,7 @@ const PaymentsTab = () => {
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.3 }}
           className="card-neu"
         >
           <div className="flex items-center justify-between">
@@ -212,6 +302,7 @@ const PaymentsTab = () => {
           </div>
         </motion.div>
       </div>
+
 
       {/* Search and Filters */}
       <div className="card-neu">
@@ -235,9 +326,11 @@ const PaymentsTab = () => {
             className="input-field"
           >
             <option value="">All Types</option>
-            <option value="client">Client Payments</option>
-            <option value="vendor">Vendor Payments</option>
+            <option value="client">Client Payments (Incoming)</option>
+            <option value="vendor">Vendor Payments (Outgoing)</option>
+
           </select>
+
           
           <select
             value={paymentFilter.status}
@@ -337,9 +430,11 @@ const PaymentsTab = () => {
                       className="input-field"
                       required
                     >
-                      <option value="client">Client Payment</option>
-                      <option value="vendor">Vendor Payment</option>
-                    </select>
+                      <option value="client">Client Payment (Incoming)</option>
+                      <option value="vendor">Vendor Payment (Outgoing)</option>
+
+                  </div>
+
                   </div>
                   
                   <div>
@@ -368,6 +463,37 @@ const PaymentsTab = () => {
                       required
                     />
                   </div>
+                
+                {newPayment.type === 'client' && (
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-2">
+                      Client Name
+                    </label>
+                    <input
+                      type="text"
+                      value={newPayment.clientName}
+                      onChange={(e) => setNewPayment(prev => ({ ...prev, clientName: e.target.value }))}
+                      className="input-field"
+                      placeholder="Enter client name"
+                    />
+                  </div>
+                )}
+                
+                {newPayment.type === 'vendor' && (
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-2">
+                      Vendor Name
+                    </label>
+                    <input
+                      type="text"
+                      value={newPayment.vendorName}
+                      onChange={(e) => setNewPayment(prev => ({ ...prev, vendorName: e.target.value }))}
+                      className="input-field"
+                      placeholder="Enter vendor name"
+                    />
+                  </div>
+                )}
+
                 </div>
                 
                 <div>
@@ -388,13 +514,221 @@ const PaymentsTab = () => {
                   <button
                     type="submit"
                     className="btn-primary flex-1"
-                  >
-                    Create Payment
+>                    {newPayment.type === 'client' ? 'Create Client' : 'Create Vendor'} Payment
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setShowPaymentForm(false)}
                     className="btn-secondary flex-1"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+
+      {/* Make Payment Modal */}
+      <AnimatePresence>
+        {showMakePayment && selectedPayment && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+            onClick={() => !isMakingPayment && setShowMakePayment(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h4 className="text-2xl font-bold text-surface-900">Make Vendor Payment</h4>
+                <button
+                  onClick={() => !isMakingPayment && setShowMakePayment(false)}
+                  disabled={isMakingPayment}
+                  className="p-2 hover:bg-surface-100 rounded-xl transition-colors disabled:opacity-50"
+                >
+                  <ApperIcon name="X" className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Payment Details */}
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
+                <h5 className="text-lg font-semibold text-surface-900 mb-4">Payment Details</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-surface-600">Description:</span>
+                    <p className="font-medium">{selectedPayment.description}</p>
+                  </div>
+                  <div>
+                    <span className="text-surface-600">Amount:</span>
+                    <p className="font-bold text-xl text-orange-600">${selectedPayment.amount.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <span className="text-surface-600">Vendor:</span>
+                    <p className="font-medium">{selectedPayment.vendorName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-surface-600">Due Date:</span>
+                    <p className="font-medium">{format(new Date(selectedPayment.dueDate), 'MMM dd, yyyy')}</p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={processMakePayment} className="space-y-6">
+                {/* Payment Method Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-4">
+                    Payment Method *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      { id: 'bank_transfer', name: 'Bank Transfer', icon: 'Building' },
+                      { id: 'check', name: 'Check', icon: 'FileText' }
+                    ].map(method => (
+                      <div
+                        key={method.id}
+                        onClick={() => setMakePaymentData(prev => ({ ...prev, paymentMethod: method.id }))}
+                        className={`payment-method-btn ${
+                          makePaymentData.paymentMethod === method.id ? 'active' : ''
+                        }`}
+                      >
+                        <ApperIcon name={method.icon} className="w-5 h-5" />
+                        <span className="text-sm font-medium">{method.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bank Transfer Details */}
+                {makePaymentData.paymentMethod === 'bank_transfer' && (
+                  <div className="space-y-4">
+                    <h6 className="text-lg font-semibold text-surface-900">Bank Transfer Information</h6>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-surface-700 mb-2">
+                          Bank Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={makePaymentData.bankName}
+                          onChange={(e) => setMakePaymentData(prev => ({ ...prev, bankName: e.target.value }))}
+                          className="input-field"
+                          placeholder="Enter bank name"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-surface-700 mb-2">
+                          Account Number *
+                        </label>
+                        <input
+                          type="text"
+                          value={makePaymentData.accountNumber}
+                          onChange={(e) => setMakePaymentData(prev => ({ ...prev, accountNumber: e.target.value }))}
+                          className="input-field"
+                          placeholder="Enter account number"
+                          required
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-surface-700 mb-2">
+                          Routing Number *
+                        </label>
+                        <input
+                          type="text"
+                          value={makePaymentData.routingNumber}
+                          onChange={(e) => setMakePaymentData(prev => ({ ...prev, routingNumber: e.target.value }))}
+                          className="input-field"
+                          placeholder="Enter routing number"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Check Details */}
+                {makePaymentData.paymentMethod === 'check' && (
+                  <div className="space-y-4">
+                    <h6 className="text-lg font-semibold text-surface-900">Check Information</h6>
+                    <div>
+                      <label className="block text-sm font-medium text-surface-700 mb-2">
+                        Check Number *
+                      </label>
+                      <input
+                        type="text"
+                        value={makePaymentData.checkNumber}
+                        onChange={(e) => setMakePaymentData(prev => ({ ...prev, checkNumber: e.target.value }))}
+                        className="input-field"
+                        placeholder="Enter check number"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Amount Confirmation */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
+                    Amount to Pay ($) *
+                  </label>
+                  <input
+                    type="number"
+                    value={makePaymentData.amount}
+                    onChange={(e) => setMakePaymentData(prev => ({ ...prev, amount: e.target.value }))}
+                    className="input-field"
+                    placeholder="0.00"
+                    step="0.01"
+                    required
+                  />
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
+                    Notes (Optional)
+                  </label>
+                  <textarea
+                    value={makePaymentData.notes}
+                    onChange={(e) => setMakePaymentData(prev => ({ ...prev, notes: e.target.value }))}
+                    className="input-field"
+                    placeholder="Additional notes about this payment..."
+                    rows="3"
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                  <button
+                    type="submit"
+                    disabled={isMakingPayment}
+                    className="btn-primary flex-1 disabled:opacity-50 flex items-center justify-center space-x-2"
+                  >
+                    {isMakingPayment ? (
+                      <>
+                        <div className="processing-spinner" />
+                        <span>Processing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ApperIcon name="Send" className="w-5 h-5" />
+                        <span>Make Payment</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowMakePayment(false)}
+                    disabled={isMakingPayment}
+                    className="btn-secondary flex-1 disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -423,7 +757,8 @@ const PaymentsTab = () => {
               className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center mb-6">
-                <h4 className="text-2xl font-bold text-surface-900">Receive Payment</h4>
+                <h4 className="text-2xl font-bold text-surface-900">Receive Client Payment</h4>
+
                 <button
                   onClick={() => !isProcessing && setShowReceivePayment(false)}
                   disabled={isProcessing}
@@ -434,7 +769,8 @@ const PaymentsTab = () => {
               </div>
 
               {/* Payment Details */}
-              <div className="payment-card mb-6">
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+
                 <h5 className="text-lg font-semibold text-surface-900 mb-4">Payment Details</h5>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div>
@@ -448,6 +784,7 @@ const PaymentsTab = () => {
                   <div>
                     <span className="text-surface-600">Client:</span>
                     <p className="font-medium">{selectedPayment.clientName || 'N/A'}</p>
+
                   </div>
                   <div>
                     <span className="text-surface-600">Due Date:</span>
@@ -693,7 +1030,8 @@ const PaymentsTab = () => {
                       )}
                     </div>
                     <div className="flex space-x-2">
-                      {payment.status === 'pending' && (
+
+                      {payment.status === 'pending' && payment.type === 'client' && (
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
@@ -704,6 +1042,19 @@ const PaymentsTab = () => {
                           Receive Payment
                         </motion.button>
                       )}
+
+                      {payment.status === 'pending' && payment.type === 'vendor' && (
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleMakePayment(payment)}
+                          className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
+                        >
+                          <ApperIcon name="Send" className="w-4 h-4 mr-1 inline" />
+                          Make Payment
+                        </motion.button>
+                      )}
+
 
                       {payment.status !== 'paid' && (
                         <select
