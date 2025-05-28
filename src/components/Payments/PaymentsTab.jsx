@@ -23,7 +23,6 @@ const PaymentsTab = () => {
     receivePayment
   } = usePaymentData()
 
-  
   const [showPaymentForm, setShowPaymentForm] = useState(false)
   const [newPayment, setNewPayment] = useState({
     eventId: '',
@@ -36,7 +35,6 @@ const PaymentsTab = () => {
     paymentMethod: ''
   })
   const [showReceivePayment, setShowReceivePayment] = useState(false)
-
   const [selectedPayment, setSelectedPayment] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [receivePaymentData, setReceivePaymentData] = useState({
@@ -48,7 +46,6 @@ const PaymentsTab = () => {
     amount: '',
     notes: ''
   })
-
 
   const handleCreatePayment = (e) => {
     e.preventDefault()
@@ -97,12 +94,7 @@ const PaymentsTab = () => {
       setPayments(prev => prev.filter(payment => payment.id !== paymentId))
       toast.success('Payment record deleted successfully!')
     }
-
   }
-
-
-
-
 
   const handleReceivePayment = (payment) => {
     setSelectedPayment(payment)
@@ -147,7 +139,6 @@ const PaymentsTab = () => {
       setIsProcessing(false)
     }
   }
-
 
   return (
     <motion.div
@@ -411,13 +402,8 @@ const PaymentsTab = () => {
               </form>
             </motion.div>
           </motion.div>
-          </motion.div>
-        </motion.div>
+        )}
       </AnimatePresence>
-
-      </AnimatePresence>
-
-
 
       {/* Receive Payment Modal */}
       <AnimatePresence>
@@ -663,7 +649,6 @@ const PaymentsTab = () => {
         )}
       </AnimatePresence>
 
-
       {/* Payments List */}
       <div className="card-neu">
         <h4 className="text-xl font-bold text-surface-900 mb-6">Payment Records</h4>
@@ -768,8 +753,6 @@ const PaymentsTab = () => {
         </div>
       </div>
     </motion.div>
-  
-
   )
 }
 
