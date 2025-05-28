@@ -2529,15 +2529,17 @@ const MainFeature = () => {
                         </div>
                       )}
                       <div className="flex gap-3 pt-4">
-                        <button
-                          onClick={() => {
-                            updatePaymentStatus(selectedPayment.id, 'paid')
-                            setShowPaymentDetails(false)
-                          }}
-                          className="btn-primary flex-1"
-                        >
-                          Mark as Paid
-                        </button>
+                        {selectedPayment.status !== 'paid' && (
+                          <button
+                            onClick={() => {
+                              updatePaymentStatus(selectedPayment.id, 'paid')
+                              setShowPaymentDetails(false)
+                            }}
+                            className="btn-primary flex-1"
+                          >
+                            Mark as Paid
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             setRefundAmount(selectedPayment.amount.toString())
@@ -2557,33 +2559,13 @@ const MainFeature = () => {
                           Adjust Amount
                         </button>
                       </div>
-                    
-                    {selectedPayment.status === 'paid' && (
-                      <div className="flex gap-3 pt-4">
-                        <button
-                          onClick={() => {
-                            setRefundAmount(selectedPayment.amount.toString())
-                            setShowRefundDialog(true)
-                          }}
-                          className="btn-primary flex-1"
-                        >
-                          Process Refund
-                        </button>
-                        <button
-                          onClick={() => {
-                            setAdjustmentAmount(selectedPayment.amount.toString())
-                            setShowAdjustmentDialog(true)
-                          }}
-                          className="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-xl hover:bg-yellow-200 transition-colors"
-                        >
-                          Adjust Amount
-                        </button>
-                      </div>
-
                     </div>
-
                   </motion.div>
                 </motion.div>
+              )}
+            </AnimatePresence>
+
+
               )}
             </AnimatePresence>
 
