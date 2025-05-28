@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import Dashboard from '../components/Dashboard'
-
+import MainFeature from '../components/MainFeature'
 import ApperIcon from '../components/ApperIcon'
 
 const Home = () => {
@@ -173,8 +172,7 @@ const Home = () => {
               </p>
             </motion.div>
             
-            <Dashboard />
-
+            <MainFeature />
           </div>
         </section>
       </main>
