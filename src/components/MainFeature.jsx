@@ -169,6 +169,15 @@ const MainFeature = () => {
     paymentMethod: ''
   })
 
+  const [showRefundDialog, setShowRefundDialog] = useState(false)
+  const [refundAmount, setRefundAmount] = useState('')
+  const [refundReason, setRefundReason] = useState('')
+  const [showAdjustmentDialog, setShowAdjustmentDialog] = useState(false)
+  const [adjustmentAmount, setAdjustmentAmount] = useState('')
+  const [adjustmentReason, setAdjustmentReason] = useState('')
+  const [showReportDialog, setShowReportDialog] = useState(false)
+
+
 
 
   const [vendors, setVendors] = useState([
@@ -633,6 +642,121 @@ const MainFeature = () => {
       return payment.status === 'pending' && new Date(payment.dueDate) < new Date()
     })
   }
+  const processRefund = (paymentId, amount, reason) => {
+    setPayments(prev => prev.map(payment => {
+      if (payment.id === paymentId) {
+        return {
+          ...payment,
+          status: 'refunded',
+          refundAmount: parseFloat(amount),
+          refundReason: reason,
+          refundDate: new Date(),
+          originalAmount: payment.amount,
+          amount: payment.amount - parseFloat(amount)
+        }
+      }
+      return payment
+    }))
+    setShowRefundDialog(false)
+    setRefundAmount('')
+    setRefundReason('')
+    setSelectedPayment(null)
+    toast.success(`Refund of $${parseFloat(amount).toLocaleString()} processed successfully`)
+  }
+
+  const adjustPaymentAmount = (paymentId, newAmount, reason) => {
+    setPayments(prev => prev.map(payment => {
+      if (payment.id === paymentId) {
+        const adjustment = {
+          id: Date.now().toString(),
+          originalAmount: payment.amount,
+          newAmount: parseFloat(newAmount),
+          reason: reason,
+          adjustedBy: 'System Admin',
+          adjustedDate: new Date()
+        }
+        return {
+          ...payment,
+          amount: parseFloat(newAmount),
+          adjustments: payment.adjustments ? [...payment.adjustments, adjustment] : [adjustment]
+        }
+      }
+      return payment
+    }))
+    setShowAdjustmentDialog(false)
+    setAdjustmentAmount('')
+    setAdjustmentReason('')
+    setSelectedPayment(null)
+    toast.success('Payment amount adjusted successfully')
+  }
+
+  const generatePaymentReport = () => {
+    const totalPayments = payments.length
+    const totalRevenue = getTotalRevenue()
+    const totalRefunds = payments
+      .filter(payment => payment.status === 'refunded')
+      .reduce((sum, payment) => sum + (payment.refundAmount || 0), 0)
+    const pendingPayments = payments.filter(payment => payment.status === 'pending').length
+    const overduePayments = getOverduePayments().length
+    
+    const paymentMethodBreakdown = payments.reduce((acc, payment) => {
+      if (payment.paymentMethod) {
+        acc[payment.paymentMethod] = (acc[payment.paymentMethod] || 0) + 1
+      }
+      return acc
+    }, {})
+    
+    const clientPayments = payments.filter(p => p.type === 'client').length
+    const vendorPayments = payments.filter(p => p.type === 'vendor').length
+    
+    const report = {
+      generatedDate: new Date(),
+      summary: {
+        totalPayments,
+        totalRevenue,
+        totalRefunds,
+        netRevenue: totalRevenue - totalRefunds,
+        pendingPayments,
+        overduePayments,
+        clientPayments,
+        vendorPayments
+      },
+      paymentMethodBreakdown,
+      payments: payments.map(payment => ({
+        ...payment,
+        eventName: events.find(e => e.id === payment.eventId)?.name || 'Unknown Event'
+      }))
+    }
+    
+    // Create downloadable report
+    const reportContent = JSON.stringify(report, null, 2)
+    const blob = new Blob([reportContent], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `payment-report-${format(new Date(), 'yyyy-MM-dd')}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    
+    setShowReportDialog(false)
+    toast.success('Payment report generated and downloaded successfully')
+  }
+
+  const getTotalRefunds = () => {
+    return payments
+      .filter(payment => payment.status === 'refunded')
+      .reduce((sum, payment) => sum + (payment.refundAmount || 0), 0)
+  }
+
+  const getPaymentMethodStats = () => {
+    return payments.reduce((acc, payment) => {
+      if (payment.paymentMethod && payment.status === 'paid') {
+        acc[payment.paymentMethod] = (acc[payment.paymentMethod] || 0) + payment.amount
+      }
+      return acc
+    }, {})
+  }
+
 
 
   const StarRating = ({ rating, onRatingChange, readonly = false, size = 'w-5 h-5' }) => {
@@ -692,6 +816,8 @@ const MainFeature = () => {
             <span className="hidden sm:inline">{tab.label}</span>
           </motion.button>
         ))}
+      </div>
+
 
       {/* Event Creation Form Modal - Available from all tabs */}
       <AnimatePresence>
@@ -825,7 +951,6 @@ const MainFeature = () => {
       </AnimatePresence>
 
 
-      </div>
 
       <AnimatePresence mode="wait">
         {/* Events Tab */}
@@ -1994,7 +2119,76 @@ const MainFeature = () => {
                     <ApperIcon name="AlertTriangle" className="w-6 h-6 text-red-600" />
                   </div>
                 </div>
+              </div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="card-neu"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-surface-600 mb-1">Total Refunds</p>
+                    <p className="text-2xl font-bold text-blue-600">${getTotalRefunds().toLocaleString()}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                    <ApperIcon name="RefreshCw" className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
               </motion.div>
+            </div>
+
+            {/* Payment Method Analytics */}
+            <div className="card-neu">
+              <h4 className="text-xl font-bold text-surface-900 mb-6">Payment Analytics</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h5 className="text-lg font-semibold text-surface-900 mb-4">Payment Methods</h5>
+                  <div className="space-y-3">
+                    {Object.entries(getPaymentMethodStats()).map(([method, amount]) => (
+                      <div key={method} className="flex justify-between items-center p-3 bg-surface-50 rounded-lg">
+                        <span className="font-medium text-surface-700">
+                          {method.replace('_', ' ').toUpperCase()}
+                        </span>
+                        <span className="font-bold text-surface-900">
+                          ${amount.toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h5 className="text-lg font-semibold text-surface-900 mb-4">Quick Actions</h5>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setShowReportDialog(true)}
+                      className="w-full btn-primary"
+                    >
+                      <ApperIcon name="FileText" className="w-4 h-4 mr-2" />
+                      Generate Report
+                    </button>
+                    <button
+                      onClick={() => {
+                        const overduePayments = getOverduePayments()
+                        overduePayments.forEach(payment => {
+                          updatePaymentStatus(payment.id, 'overdue')
+                        })
+                        if (overduePayments.length > 0) {
+                          toast.warning(`${overduePayments.length} payments marked as overdue`)
+                        } else {
+                          toast.info('No overdue payments found')
+                        }
+                      }}
+                      className="w-full btn-secondary"
+                    >
+                      <ApperIcon name="AlertTriangle" className="w-4 h-4 mr-2" />
+                      Check Overdue
+                    </button>
+                  </div>
+                </div>
+              </div>
+
             </div>
 
             {/* Search and Filters */}
@@ -2334,35 +2528,347 @@ const MainFeature = () => {
                           </div>
                         </div>
                       )}
-                      
-                      {selectedPayment.status !== 'paid' && (
-                        <div className="flex gap-3 pt-4">
-                          <button
-                            onClick={() => {
-                              updatePaymentStatus(selectedPayment.id, 'paid')
-                              setShowPaymentDetails(false)
-                            }}
-                            className="btn-primary flex-1"
-                          >
-                            Mark as Paid
-                          </button>
-                          {selectedPayment.status === 'paid' && (
-                            <button
-                              onClick={() => {
-                                updatePaymentStatus(selectedPayment.id, 'refunded')
-                                setShowPaymentDetails(false)
-                              }}
-                              className="px-4 py-2 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 transition-colors"
-                            >
-                              Refund
-                            </button>
-                          )}
+                      <div className="flex gap-3 pt-4">
+                        <button
+                          onClick={() => {
+                            updatePaymentStatus(selectedPayment.id, 'paid')
+                            setShowPaymentDetails(false)
+                          }}
+                          className="btn-primary flex-1"
+                        >
+                          Mark as Paid
+                        </button>
+                        <button
+                          onClick={() => {
+                            setRefundAmount(selectedPayment.amount.toString())
+                            setShowRefundDialog(true)
+                          }}
+                          className="px-4 py-2 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 transition-colors"
+                        >
+                          Process Refund
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAdjustmentAmount(selectedPayment.amount.toString())
+                            setShowAdjustmentDialog(true)
+                          }}
+                          className="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-xl hover:bg-yellow-200 transition-colors"
+                        >
+                          Adjust Amount
+                        </button>
+                      </div>
+                    
+                    {selectedPayment.status === 'paid' && (
+                      <div className="flex gap-3 pt-4">
+                        <button
+                          onClick={() => {
+                            setRefundAmount(selectedPayment.amount.toString())
+                            setShowRefundDialog(true)
+                          }}
+                          className="btn-primary flex-1"
+                        >
+                          Process Refund
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAdjustmentAmount(selectedPayment.amount.toString())
+                            setShowAdjustmentDialog(true)
+                          }}
+                          className="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-xl hover:bg-yellow-200 transition-colors"
+                        >
+                          Adjust Amount
+                        </button>
+                      </div>
+
+                    </div>
+
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Refund Dialog */}
+            <AnimatePresence>
+              {showRefundDialog && selectedPayment && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+                  onClick={() => setShowRefundDialog(false)}
+                >
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.95, opacity: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white rounded-2xl p-6 w-full max-w-md"
+                  >
+                    <div className="flex justify-between items-center mb-6">
+                      <h4 className="text-xl font-bold text-surface-900">Process Refund</h4>
+                      <button
+                        onClick={() => setShowRefundDialog(false)}
+                        className="p-2 hover:bg-surface-100 rounded-xl transition-colors"
+                      >
+                        <ApperIcon name="X" className="w-5 h-5" />
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="bg-surface-50 rounded-xl p-4">
+                        <div className="text-sm text-surface-600 mb-1">Original Amount</div>
+                        <div className="text-lg font-bold text-surface-900">
+                          ${selectedPayment.amount.toLocaleString()}
                         </div>
-                      )}
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-surface-700 mb-2">
+                          Refund Amount ($) *
+                        </label>
+                        <input
+                          type="number"
+                          value={refundAmount}
+                          onChange={(e) => setRefundAmount(e.target.value)}
+                          className="input-field"
+                          placeholder="0.00"
+                          max={selectedPayment.amount}
+                          required
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-surface-700 mb-2">
+                          Refund Reason *
+                        </label>
+                        <textarea
+                          value={refundReason}
+                          onChange={(e) => setRefundReason(e.target.value)}
+                          className="input-field"
+                          placeholder="Enter reason for refund"
+                          rows="3"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="flex gap-3 pt-4">
+                        <button
+                          onClick={() => {
+                            if (!refundAmount || !refundReason) {
+                              toast.error('Please fill in all required fields')
+                              return
+                            }
+                            if (parseFloat(refundAmount) > selectedPayment.amount) {
+                              toast.error('Refund amount cannot exceed original payment amount')
+                              return
+                            }
+                            if (window.confirm(`Are you sure you want to process a refund of $${parseFloat(refundAmount).toLocaleString()}?`)) {
+                              processRefund(selectedPayment.id, refundAmount, refundReason)
+                            }
+                          }}
+                          className="btn-primary flex-1"
+                        >
+                          Process Refund
+                        </button>
+                        <button
+                          onClick={() => setShowRefundDialog(false)}
+                          className="btn-secondary flex-1"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 </motion.div>
               )}
+            </AnimatePresence>
+
+            {/* Payment Adjustment Dialog */}
+            <AnimatePresence>
+              {showAdjustmentDialog && selectedPayment && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+                  onClick={() => setShowAdjustmentDialog(false)}
+                >
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.95, opacity: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white rounded-2xl p-6 w-full max-w-md"
+                  >
+                    <div className="flex justify-between items-center mb-6">
+                      <h4 className="text-xl font-bold text-surface-900">Adjust Payment</h4>
+                      <button
+                        onClick={() => setShowAdjustmentDialog(false)}
+                        className="p-2 hover:bg-surface-100 rounded-xl transition-colors"
+                      >
+                        <ApperIcon name="X" className="w-5 h-5" />
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="bg-surface-50 rounded-xl p-4">
+                        <div className="text-sm text-surface-600 mb-1">Current Amount</div>
+                        <div className="text-lg font-bold text-surface-900">
+                          ${selectedPayment.amount.toLocaleString()}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-surface-700 mb-2">
+                          New Amount ($) *
+                        </label>
+                        <input
+                          type="number"
+                          value={adjustmentAmount}
+                          onChange={(e) => setAdjustmentAmount(e.target.value)}
+                          className="input-field"
+                          placeholder="0.00"
+                          required
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-surface-700 mb-2">
+                          Adjustment Reason *
+                        </label>
+                        <textarea
+                          value={adjustmentReason}
+                          onChange={(e) => setAdjustmentReason(e.target.value)}
+                          className="input-field"
+                          placeholder="Enter reason for adjustment"
+                          rows="3"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="flex gap-3 pt-4">
+                        <button
+                          onClick={() => {
+                            if (!adjustmentAmount || !adjustmentReason) {
+                              toast.error('Please fill in all required fields')
+                              return
+                            }
+                            if (parseFloat(adjustmentAmount) <= 0) {
+                              toast.error('Adjustment amount must be greater than zero')
+                              return
+                            }
+                            if (window.confirm(`Are you sure you want to adjust payment to $${parseFloat(adjustmentAmount).toLocaleString()}?`)) {
+                              adjustPaymentAmount(selectedPayment.id, adjustmentAmount, adjustmentReason)
+                            }
+                          }}
+                          className="btn-primary flex-1"
+                        >
+                          Adjust Payment
+                        </button>
+                        <button
+                          onClick={() => setShowAdjustmentDialog(false)}
+                          className="btn-secondary flex-1"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Payment Report Dialog */}
+            <AnimatePresence>
+              {showReportDialog && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+                  onClick={() => setShowReportDialog(false)}
+                >
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.95, opacity: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                  >
+                    <div className="flex justify-between items-center mb-6">
+                      <h4 className="text-2xl font-bold text-surface-900">Payment Report</h4>
+                      <button
+                        onClick={() => setShowReportDialog(false)}
+                        className="p-2 hover:bg-surface-100 rounded-xl transition-colors"
+                      >
+                        <ApperIcon name="X" className="w-6 h-6" />
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-surface-50 rounded-xl p-4">
+                          <div className="text-sm text-surface-600 mb-1">Total Payments</div>
+                          <div className="text-xl font-bold text-surface-900">{payments.length}</div>
+                        </div>
+                        <div className="bg-surface-50 rounded-xl p-4">
+                          <div className="text-sm text-surface-600 mb-1">Total Revenue</div>
+                          <div className="text-xl font-bold text-green-600">${getTotalRevenue().toLocaleString()}</div>
+                        </div>
+                        <div className="bg-surface-50 rounded-xl p-4">
+                          <div className="text-sm text-surface-600 mb-1">Total Refunds</div>
+                          <div className="text-xl font-bold text-blue-600">${getTotalRefunds().toLocaleString()}</div>
+                        </div>
+                        <div className="bg-surface-50 rounded-xl p-4">
+                          <div className="text-sm text-surface-600 mb-1">Net Revenue</div>
+                          <div className="text-xl font-bold text-primary">
+                            ${(getTotalRevenue() - getTotalRefunds()).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h5 className="text-lg font-semibold text-surface-900 mb-4">Report Details</h5>
+                        <div className="space-y-3">
+                          <div className="flex justify-between">
+                            <span className="text-surface-600">Pending Payments:</span>
+                            <span className="font-medium">{payments.filter(p => p.status === 'pending').length}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-surface-600">Overdue Payments:</span>
+                            <span className="font-medium text-red-600">{getOverduePayments().length}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-surface-600">Client Payments:</span>
+                            <span className="font-medium">{payments.filter(p => p.type === 'client').length}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-surface-600">Vendor Payments:</span>
+                            <span className="font-medium">{payments.filter(p => p.type === 'vendor').length}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-3 pt-4">
+                        <button
+                          onClick={generatePaymentReport}
+                          className="btn-primary flex-1"
+                        >
+                          <ApperIcon name="Download" className="w-4 h-4 mr-2" />
+                          Download Report
+                        </button>
+                        <button
+                          onClick={() => setShowReportDialog(false)}
+                          className="btn-secondary flex-1"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+
             </AnimatePresence>
 
             {/* Payments List */}
