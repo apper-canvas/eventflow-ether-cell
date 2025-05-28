@@ -2138,6 +2138,8 @@ const MainFeature = () => {
                 </div>
               </motion.div>
 
+              </motion.div>
+
             </div>
 
             {/* Payment Method Analytics */}
@@ -2961,6 +2963,7 @@ const MainFeature = () => {
             </div>
 
           </motion.div>
+
 
         )}
 
