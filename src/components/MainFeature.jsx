@@ -1,0 +1,795 @@
+import { useState, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { format, addDays, startOfWeek, isSameDay } from 'date-fns'
+import { toast } from 'react-toastify'
+import ApperIcon from './ApperIcon'
+
+const MainFeature = () => {
+  const [activeTab, setActiveTab] = useState('events')
+  const [selectedEvent, setSelectedEvent] = useState(null)
+  const [showEventForm, setShowEventForm] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  
+  // Mock data
+  const [events, setEvents] = useState([
+    {
+      id: '1',
+      name: 'Product Launch 2024',
+      description: 'Annual product launch event showcasing our latest innovations',
+      date: addDays(new Date(), 3),
+      venue: 'Convention Center Hall A',
+      status: 'planning',
+      budget: 50000,
+      guestCount: 250,
+      createdAt: new Date(),
+      tasks: [
+        { id: '1', title: 'Book venue', status: 'completed', priority: 'high' },
+        { id: '2', title: 'Send invitations', status: 'in-progress', priority: 'high' },
+        { id: '3', title: 'Arrange catering', status: 'pending', priority: 'medium' },
+      ]
+    },
+    {
+      id: '2',
+      name: 'Team Building Retreat',
+      description: 'Quarterly team building activities and workshops',
+      date: addDays(new Date(), 14),
+      venue: 'Mountain Resort',
+      status: 'confirmed',
+      budget: 25000,
+      guestCount: 85,
+      createdAt: new Date(),
+      tasks: [
+        { id: '4', title: 'Book accommodation', status: 'completed', priority: 'high' },
+        { id: '5', title: 'Plan activities', status: 'in-progress', priority: 'medium' },
+      ]
+    },
+    {
+      id: '3',
+      name: 'Client Conference',
+      description: 'Annual client appreciation and networking event',
+      date: addDays(new Date(), 21),
+      venue: 'Grand Hotel Ballroom',
+      status: 'planning',
+      budget: 75000,
+      guestCount: 400,
+      createdAt: new Date(),
+      tasks: [
+        { id: '6', title: 'Confirm speakers', status: 'pending', priority: 'high' },
+        { id: '7', title: 'Design materials', status: 'pending', priority: 'medium' },
+      ]
+    }
+  ])
+
+  const [guests, setGuests] = useState([
+    { id: '1', eventId: '1', name: 'John Smith', email: 'john@company.com', rsvpStatus: 'confirmed' },
+    { id: '2', eventId: '1', name: 'Sarah Johnson', email: 'sarah@company.com', rsvpStatus: 'pending' },
+    { id: '3', eventId: '1', name: 'Mike Chen', email: 'mike@company.com', rsvpStatus: 'declined' },
+  ])
+
+  const [budgetItems, setBudgetItems] = useState([
+    { id: '1', eventId: '1', category: 'Venue', allocatedAmount: 20000, spentAmount: 18000 },
+    { id: '2', eventId: '1', category: 'Catering', allocatedAmount: 15000, spentAmount: 12000 },
+    { id: '3', eventId: '1', category: 'Marketing', allocatedAmount: 8000, spentAmount: 5500 },
+    { id: '4', eventId: '1', category: 'Entertainment', allocatedAmount: 7000, spentAmount: 0 },
+  ])
+
+  const [newEvent, setNewEvent] = useState({
+    name: '',
+    description: '',
+    date: '',
+    venue: '',
+    budget: '',
+    guestCount: ''
+  })
+
+  const [newGuest, setNewGuest] = useState({
+    name: '',
+    email: '',
+    eventId: ''
+  })
+
+  const tabs = [
+    { id: 'events', label: 'Events', icon: 'Calendar' },
+    { id: 'guests', label: 'Guests', icon: 'Users' },
+    { id: 'budget', label: 'Budget', icon: 'DollarSign' },
+    { id: 'calendar', label: 'Calendar', icon: 'CalendarDays' }
+  ]
+
+  const statusColors = {
+    planning: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    confirmed: 'bg-green-100 text-green-800 border-green-200',
+    cancelled: 'bg-red-100 text-red-800 border-red-200',
+    completed: 'bg-blue-100 text-blue-800 border-blue-200'
+  }
+
+  const rsvpColors = {
+    confirmed: 'bg-green-100 text-green-800',
+    pending: 'bg-yellow-100 text-yellow-800',
+    declined: 'bg-red-100 text-red-800'
+  }
+
+  const priorityColors = {
+    high: 'bg-red-100 text-red-800',
+    medium: 'bg-yellow-100 text-yellow-800',
+    low: 'bg-green-100 text-green-800'
+  }
+
+  const taskStatusColors = {
+    completed: 'bg-green-100 text-green-800',
+    'in-progress': 'bg-blue-100 text-blue-800',
+    pending: 'bg-gray-100 text-gray-800'
+  }
+
+  // Calendar generation
+  const calendarDays = useMemo(() => {
+    const start = startOfWeek(selectedDate)
+    const days = []
+    for (let i = 0; i < 7; i++) {
+      days.push(addDays(start, i))
+    }
+    return days
+  }, [selectedDate])
+
+  const getEventsForDate = (date) => {
+    return events.filter(event => isSameDay(new Date(event.date), date))
+  }
+
+  const handleCreateEvent = (e) => {
+    e.preventDefault()
+    if (!newEvent.name || !newEvent.date || !newEvent.venue) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+
+    const event = {
+      ...newEvent,
+      id: Date.now().toString(),
+      status: 'planning',
+      createdAt: new Date(),
+      date: new Date(newEvent.date),
+      budget: parseFloat(newEvent.budget) || 0,
+      guestCount: parseInt(newEvent.guestCount) || 0,
+      tasks: []
+    }
+
+    setEvents(prev => [...prev, event])
+    setNewEvent({ name: '', description: '', date: '', venue: '', budget: '', guestCount: '' })
+    setShowEventForm(false)
+    toast.success('Event created successfully!')
+  }
+
+  const handleAddGuest = (e) => {
+    e.preventDefault()
+    if (!newGuest.name || !newGuest.email || !newGuest.eventId) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+
+    const guest = {
+      ...newGuest,
+      id: Date.now().toString(),
+      rsvpStatus: 'pending'
+    }
+
+    setGuests(prev => [...prev, guest])
+    setNewGuest({ name: '', email: '', eventId: '' })
+    toast.success('Guest added successfully!')
+  }
+
+  const updateEventStatus = (eventId, status) => {
+    setEvents(prev => prev.map(event => 
+      event.id === eventId ? { ...event, status } : event
+    ))
+    toast.success(`Event status updated to ${status}`)
+  }
+
+  const updateGuestRSVP = (guestId, status) => {
+    setGuests(prev => prev.map(guest => 
+      guest.id === guestId ? { ...guest, rsvpStatus: status } : guest
+    ))
+    toast.success('RSVP status updated')
+  }
+
+  const getTotalBudgetSpent = (eventId) => {
+    return budgetItems
+      .filter(item => item.eventId === eventId)
+      .reduce((sum, item) => sum + item.spentAmount, 0)
+  }
+
+  const getTotalBudgetAllocated = (eventId) => {
+    return budgetItems
+      .filter(item => item.eventId === eventId)
+      .reduce((sum, item) => sum + item.allocatedAmount, 0)
+  }
+
+  return (
+    <div className="space-y-6 sm:space-y-8">
+      {/* Tab Navigation */}
+      <div className="flex flex-wrap gap-2 sm:gap-4 p-2 bg-surface-100 rounded-2xl">
+        {tabs.map((tab) => (
+          <motion.button
+            key={tab.id}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center space-x-2 px-4 sm:px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
+              activeTab === tab.id
+                ? 'bg-white shadow-card text-primary'
+                : 'text-surface-600 hover:text-surface-900 hover:bg-white/50'
+            }`}
+          >
+            <ApperIcon name={tab.icon} className="w-5 h-5" />
+            <span className="hidden sm:inline">{tab.label}</span>
+          </motion.button>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        {/* Events Tab */}
+        {activeTab === 'events' && (
+          <motion.div
+            key="events"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+          >
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <h3 className="text-2xl sm:text-3xl font-bold text-surface-900">Your Events</h3>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowEventForm(true)}
+                className="btn-primary inline-flex items-center space-x-2"
+              >
+                <ApperIcon name="Plus" className="w-5 h-5" />
+                <span>Create Event</span>
+              </motion.button>
+            </div>
+
+            {/* Event Creation Form Modal */}
+            <AnimatePresence>
+              {showEventForm && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+                  onClick={() => setShowEventForm(false)}
+                >
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.95, opacity: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                  >
+                    <div className="flex justify-between items-center mb-6">
+                      <h4 className="text-2xl font-bold text-surface-900">Create New Event</h4>
+                      <button
+                        onClick={() => setShowEventForm(false)}
+                        className="p-2 hover:bg-surface-100 rounded-xl transition-colors"
+                      >
+                        <ApperIcon name="X" className="w-6 h-6" />
+                      </button>
+                    </div>
+                    
+                    <form onSubmit={handleCreateEvent} className="space-y-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="sm:col-span-2">
+                          <label className="block text-sm font-medium text-surface-700 mb-2">
+                            Event Name *
+                          </label>
+                          <input
+                            type="text"
+                            value={newEvent.name}
+                            onChange={(e) => setNewEvent(prev => ({ ...prev, name: e.target.value }))}
+                            className="input-field"
+                            placeholder="Enter event name"
+                            required
+                          />
+                        </div>
+                        
+                        <div className="sm:col-span-2">
+                          <label className="block text-sm font-medium text-surface-700 mb-2">
+                            Description
+                          </label>
+                          <textarea
+                            value={newEvent.description}
+                            onChange={(e) => setNewEvent(prev => ({ ...prev, description: e.target.value }))}
+                            className="input-field"
+                            placeholder="Event description"
+                            rows="3"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-surface-700 mb-2">
+                            Date *
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={newEvent.date}
+                            onChange={(e) => setNewEvent(prev => ({ ...prev, date: e.target.value }))}
+                            className="input-field"
+                            required
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-surface-700 mb-2">
+                            Venue *
+                          </label>
+                          <input
+                            type="text"
+                            value={newEvent.venue}
+                            onChange={(e) => setNewEvent(prev => ({ ...prev, venue: e.target.value }))}
+                            className="input-field"
+                            placeholder="Event venue"
+                            required
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-surface-700 mb-2">
+                            Budget ($)
+                          </label>
+                          <input
+                            type="number"
+                            value={newEvent.budget}
+                            onChange={(e) => setNewEvent(prev => ({ ...prev, budget: e.target.value }))}
+                            className="input-field"
+                            placeholder="0"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-surface-700 mb-2">
+                            Expected Guests
+                          </label>
+                          <input
+                            type="number"
+                            value={newEvent.guestCount}
+                            onChange={(e) => setNewEvent(prev => ({ ...prev, guestCount: e.target.value }))}
+                            className="input-field"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                        <button
+                          type="submit"
+                          className="btn-primary flex-1"
+                        >
+                          Create Event
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowEventForm(false)}
+                          className="btn-secondary flex-1"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Events Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {events.map((event, index) => (
+                <motion.div
+                  key={event.id}
+                  initial={{ opacity: 0, y: 50 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="card-neu group hover:shadow-glow cursor-pointer"
+                  onClick={() => setSelectedEvent(selectedEvent === event.id ? null : event.id)}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <h4 className="text-lg sm:text-xl font-bold text-surface-900 mb-2 group-hover:text-primary transition-colors">
+                        {event.name}
+                      </h4>
+                      <p className="text-surface-600 text-sm sm:text-base mb-3 line-clamp-2">
+                        {event.description}
+                      </p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${statusColors[event.status]}`}>
+                      {event.status}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-3 mb-4">
+                    <div className="flex items-center space-x-2 text-sm text-surface-600">
+                      <ApperIcon name="Calendar" className="w-4 h-4" />
+                      <span>{format(new Date(event.date), 'MMM dd, yyyy • HH:mm')}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-sm text-surface-600">
+                      <ApperIcon name="MapPin" className="w-4 h-4" />
+                      <span>{event.venue}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-sm text-surface-600">
+                      <ApperIcon name="Users" className="w-4 h-4" />
+                      <span>{event.guestCount} guests</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <select
+                      value={event.status}
+                      onChange={(e) => {
+                        e.stopPropagation()
+                        updateEventStatus(event.id, e.target.value)
+                      }}
+                      className="flex-1 px-3 py-2 border border-surface-200 rounded-lg text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <option value="planning">Planning</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                    
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setActiveTab('guests')
+                      }}
+                      className="px-4 py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors"
+                    >
+                      Manage
+                    </motion.button>
+                  </div>
+
+                  {/* Event Details Expansion */}
+                  <AnimatePresence>
+                    {selectedEvent === event.id && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-6 pt-6 border-t border-surface-200"
+                      >
+                        <h5 className="font-semibold text-surface-900 mb-3">Tasks</h5>
+                        <div className="space-y-2">
+                          {event.tasks.map((task) => (
+                            <div key={task.id} className="flex items-center justify-between p-3 bg-surface-50 rounded-lg">
+                              <span className="text-sm text-surface-700">{task.title}</span>
+                              <div className="flex items-center space-x-2">
+                                <span className={`px-2 py-1 rounded-full text-xs ${priorityColors[task.priority]}`}>
+                                  {task.priority}
+                                </span>
+                                <span className={`px-2 py-1 rounded-full text-xs ${taskStatusColors[task.status]}`}>
+                                  {task.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Guests Tab */}
+        {activeTab === 'guests' && (
+          <motion.div
+            key="guests"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+          >
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <h3 className="text-2xl sm:text-3xl font-bold text-surface-900">Guest Management</h3>
+            </div>
+
+            {/* Add Guest Form */}
+            <div className="card-neu">
+              <h4 className="text-lg sm:text-xl font-bold text-surface-900 mb-4">Add New Guest</h4>
+              <form onSubmit={handleAddGuest} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <input
+                  type="text"
+                  value={newGuest.name}
+                  onChange={(e) => setNewGuest(prev => ({ ...prev, name: e.target.value }))}
+                  className="input-field"
+                  placeholder="Guest name"
+                  required
+                />
+                <input
+                  type="email"
+                  value={newGuest.email}
+                  onChange={(e) => setNewGuest(prev => ({ ...prev, email: e.target.value }))}
+                  className="input-field"
+                  placeholder="Email address"
+                  required
+                />
+                <select
+                  value={newGuest.eventId}
+                  onChange={(e) => setNewGuest(prev => ({ ...prev, eventId: e.target.value }))}
+                  className="input-field"
+                  required
+                >
+                  <option value="">Select Event</option>
+                  {events.map(event => (
+                    <option key={event.id} value={event.id}>{event.name}</option>
+                  ))}
+                </select>
+                <button type="submit" className="btn-primary">
+                  Add Guest
+                </button>
+              </form>
+            </div>
+
+            {/* Guests List */}
+            <div className="card-neu">
+              <h4 className="text-lg sm:text-xl font-bold text-surface-900 mb-4">Guest List</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-surface-200">
+                      <th className="text-left py-3 px-4 font-semibold text-surface-900">Name</th>
+                      <th className="text-left py-3 px-4 font-semibold text-surface-900 hidden sm:table-cell">Email</th>
+                      <th className="text-left py-3 px-4 font-semibold text-surface-900">Event</th>
+                      <th className="text-left py-3 px-4 font-semibold text-surface-900">RSVP</th>
+                      <th className="text-left py-3 px-4 font-semibold text-surface-900">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {guests.map((guest) => {
+                      const event = events.find(e => e.id === guest.eventId)
+                      return (
+                        <tr key={guest.id} className="border-b border-surface-100 hover:bg-surface-50">
+                          <td className="py-3 px-4 text-surface-900">{guest.name}</td>
+                          <td className="py-3 px-4 text-surface-600 hidden sm:table-cell">{guest.email}</td>
+                          <td className="py-3 px-4 text-surface-600">{event?.name || 'Unknown'}</td>
+                          <td className="py-3 px-4">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${rsvpColors[guest.rsvpStatus]}`}>
+                              {guest.rsvpStatus}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <select
+                              value={guest.rsvpStatus}
+                              onChange={(e) => updateGuestRSVP(guest.id, e.target.value)}
+                              className="px-2 py-1 border border-surface-200 rounded text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="confirmed">Confirmed</option>
+                              <option value="declined">Declined</option>
+                            </select>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Budget Tab */}
+        {activeTab === 'budget' && (
+          <motion.div
+            key="budget"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+          >
+            <h3 className="text-2xl sm:text-3xl font-bold text-surface-900">Budget Tracking</h3>
+
+            {events.map((event) => {
+              const totalAllocated = getTotalBudgetAllocated(event.id)
+              const totalSpent = getTotalBudgetSpent(event.id)
+              const eventBudgetItems = budgetItems.filter(item => item.eventId === event.id)
+
+              return (
+                <motion.div
+                  key={event.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="card-neu"
+                >
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
+                    <h4 className="text-xl font-bold text-surface-900">{event.name}</h4>
+                    <div className="flex items-center space-x-4 mt-2 sm:mt-0">
+                      <div className="text-sm text-surface-600">
+                        Spent: <span className="font-semibold text-surface-900">${totalSpent.toLocaleString()}</span>
+                      </div>
+                      <div className="text-sm text-surface-600">
+                        Budget: <span className="font-semibold text-surface-900">${event.budget.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Budget Progress */}
+                  <div className="mb-6">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-surface-700">Budget Utilization</span>
+                      <span className="text-sm font-medium text-surface-900">
+                        {((totalSpent / event.budget) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-surface-200 rounded-full h-3">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min((totalSpent / event.budget) * 100, 100)}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                        className={`h-3 rounded-full ${
+                          (totalSpent / event.budget) > 0.9 ? 'bg-red-500' :
+                          (totalSpent / event.budget) > 0.7 ? 'bg-yellow-500' : 'bg-green-500'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Budget Categories */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {eventBudgetItems.map((item) => (
+                      <div key={item.id} className="bg-surface-50 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="font-semibold text-surface-900">{item.category}</h5>
+                          <ApperIcon name="DollarSign" className="w-5 h-5 text-surface-400" />
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-surface-600">Allocated:</span>
+                            <span className="font-medium">${item.allocatedAmount.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-surface-600">Spent:</span>
+                            <span className="font-medium">${item.spentAmount.toLocaleString()}</span>
+                          </div>
+                          <div className="w-full bg-surface-200 rounded-full h-2">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${Math.min((item.spentAmount / item.allocatedAmount) * 100, 100)}%` }}
+                              transition={{ duration: 1, ease: "easeOut" }}
+                              className={`h-2 rounded-full ${
+                                (item.spentAmount / item.allocatedAmount) > 1 ? 'bg-red-500' :
+                                (item.spentAmount / item.allocatedAmount) > 0.8 ? 'bg-yellow-500' : 'bg-primary'
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )
+            })}
+          </motion.div>
+        )}
+
+        {/* Calendar Tab */}
+        {activeTab === 'calendar' && (
+          <motion.div
+            key="calendar"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+          >
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <h3 className="text-2xl sm:text-3xl font-bold text-surface-900">Event Calendar</h3>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => setSelectedDate(addDays(selectedDate, -7))}
+                  className="p-2 hover:bg-surface-100 rounded-xl transition-colors"
+                >
+                  <ApperIcon name="ChevronLeft" className="w-5 h-5" />
+                </button>
+                <span className="font-semibold text-surface-900">
+                  {format(selectedDate, 'MMMM yyyy')}
+                </span>
+                <button
+                  onClick={() => setSelectedDate(addDays(selectedDate, 7))}
+                  className="p-2 hover:bg-surface-100 rounded-xl transition-colors"
+                >
+                  <ApperIcon name="ChevronRight" className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="card-neu">
+              {/* Calendar Header */}
+              <div className="grid grid-cols-7 gap-4 mb-4">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                  <div key={day} className="text-center font-semibold text-surface-700 py-2">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              {/* Calendar Days */}
+              <div className="grid grid-cols-7 gap-4">
+                {calendarDays.map((day) => {
+                  const dayEvents = getEventsForDate(day)
+                  const isToday = isSameDay(day, new Date())
+                  
+                  return (
+                    <motion.div
+                      key={day.toISOString()}
+                      whileHover={{ scale: 1.02 }}
+                      className={`min-h-24 sm:min-h-32 p-2 sm:p-3 rounded-xl border-2 transition-all duration-300 cursor-pointer ${
+                        isToday
+                          ? 'border-primary bg-primary/5'
+                          : 'border-surface-200 hover:border-primary/50 hover:bg-surface-50'
+                      }`}
+                    >
+                      <div className={`text-sm sm:text-base font-semibold mb-2 ${
+                        isToday ? 'text-primary' : 'text-surface-900'
+                      }`}>
+                        {format(day, 'd')}
+                      </div>
+                      
+                      <div className="space-y-1">
+                        {dayEvents.slice(0, 2).map((event) => (
+                          <div
+                            key={event.id}
+                            className="text-xs p-1 sm:p-2 bg-primary/10 text-primary rounded-lg truncate"
+                            title={event.name}
+                          >
+                            {event.name}
+                          </div>
+                        ))}
+                        {dayEvents.length > 2 && (
+                          <div className="text-xs text-surface-600 text-center">
+                            +{dayEvents.length - 2} more
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Upcoming Events */}
+            <div className="card-neu">
+              <h4 className="text-xl font-bold text-surface-900 mb-4">Upcoming Events</h4>
+              <div className="space-y-3">
+                {events
+                  .filter(event => new Date(event.date) > new Date())
+                  .sort((a, b) => new Date(a.date) - new Date(b.date))
+                  .slice(0, 5)
+                  .map((event) => (
+                    <div key={event.id} className="flex items-center justify-between p-4 bg-surface-50 rounded-xl">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-xl flex items-center justify-center">
+                          <ApperIcon name="Calendar" className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                          <h5 className="font-semibold text-surface-900">{event.name}</h5>
+                          <p className="text-sm text-surface-600">
+                            {format(new Date(event.date), 'MMM dd, yyyy • HH:mm')}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${statusColors[event.status]}`}>
+                        {event.status}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+export default MainFeature
