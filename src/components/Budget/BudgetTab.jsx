@@ -1,16 +1,83 @@
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import ApperIcon from '../ApperIcon'
-import { useEventData } from '../../hooks/useEventData'
+import eventService from '../../services/eventService'
+import budgetItemService from '../../services/budgetItemService'
 import { getBudgetUtilization } from '../../utils/budgetUtils'
 
+
 const BudgetTab = () => {
-  const { events, budgetItems } = useEventData()
+  const [events, setEvents] = useState([])
+  const [budgetItems, setBudgetItems] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  // Load events and budget items on component mount
+  useEffect(() => {
+    loadEvents()
+    loadBudgetItems()
+  }, [])
+
+  const loadEvents = async () => {
+    try {
+      const eventsData = await eventService.fetchEvents()
+      setEvents(eventsData)
+    } catch (err) {
+      console.error('Error loading events:', err)
+    }
+  }
+
+  const loadBudgetItems = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const budgetData = await budgetItemService.fetchBudgetItems()
+      setBudgetItems(budgetData)
+    } catch (err) {
+      setError('Failed to load budget items')
+      console.error('Error loading budget items:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const getTotalBudgetSpent = (eventId) => {
     return budgetItems
       .filter(item => item.eventId === eventId)
       .reduce((sum, item) => sum + item.spentAmount, 0)
   }
+
+  if (loading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex items-center justify-center py-12"
+      >
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-3 text-surface-600">Loading budget data...</span>
+      </motion.div>
+    )
+  }
+
+  if (error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="text-center py-12"
+      >
+        <div className="text-red-600 mb-4">{error}</div>
+        <button
+          onClick={loadBudgetItems}
+          className="btn-primary"
+        >
+          Try Again
+        </button>
+      </motion.div>
+    )
+  }
+
 
   return (
     <motion.div

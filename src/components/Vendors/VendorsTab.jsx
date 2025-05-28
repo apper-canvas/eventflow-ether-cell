@@ -1,22 +1,25 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'react-toastify'
 import ApperIcon from '../ApperIcon'
 import StarRating from '../StarRating'
-import { useVendorData } from '../../hooks/useVendorData'
+import vendorService from '../../services/vendorService'
 import { availabilityColors, priceRangeColors } from '../../constants/colors'
 import { specialtyOptions } from '../../constants/vendorConstants'
 
+
 const VendorsTab = () => {
-  const {
-    vendors,
-    setVendors,
-    vendorSearch,
-    setVendorSearch,
-    vendorFilter,
-    setVendorFilter,
-    filteredVendors
-  } = useVendorData()
+  const [vendors, setVendors] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [vendorSearch, setVendorSearch] = useState('')
+  const [vendorFilter, setVendorFilter] = useState({
+    specialty: '',
+    rating: '',
+    availability: '',
+    priceRange: ''
+  })
+
   
   const [selectedVendor, setSelectedVendor] = useState(null)
   const [showVendorForm, setShowVendorForm] = useState(false)
@@ -33,64 +36,154 @@ const VendorsTab = () => {
     priceRange: '$$'
   })
 
-  const handleCreateVendor = (e) => {
+  // Load vendors on component mount
+  useEffect(() => {
+    loadVendors()
+  }, [])
+
+  const loadVendors = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const vendorsData = await vendorService.fetchVendors()
+      setVendors(vendorsData)
+    } catch (err) {
+      setError('Failed to load vendors')
+      console.error('Error loading vendors:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredVendors = vendors.filter(vendor => {
+    const matchesSearch = vendor.name.toLowerCase().includes(vendorSearch.toLowerCase()) ||
+                         vendor.company.toLowerCase().includes(vendorSearch.toLowerCase()) ||
+                         vendor.specialty.toLowerCase().includes(vendorSearch.toLowerCase())
+    
+    const matchesSpecialty = !vendorFilter.specialty || vendor.specialty === vendorFilter.specialty
+    const matchesRating = !vendorFilter.rating || vendor.rating >= parseFloat(vendorFilter.rating)
+    const matchesAvailability = !vendorFilter.availability || vendor.availability === vendorFilter.availability
+    const matchesPriceRange = !vendorFilter.priceRange || vendor.priceRange === vendorFilter.priceRange
+    
+    return matchesSearch && matchesSpecialty && matchesRating && matchesAvailability && matchesPriceRange
+  })
+
+
+  const handleCreateVendor = async (e) => {
     e.preventDefault()
     if (!newVendor.name || !newVendor.company || !newVendor.email || !newVendor.specialty) {
       toast.error('Please fill in all required fields')
       return
     }
 
-    const vendor = {
-      ...newVendor,
-      id: Date.now().toString(),
-      rating: 0,
-      reviewCount: 0,
-      availability: 'available',
-      portfolioImages: []
-    }
+    setLoading(true)
+    try {
+      const createdVendors = await vendorService.createVendors({
+        name: newVendor.name,
+        company: newVendor.company,
+        email: newVendor.email,
+        phone: newVendor.phone,
+        specialty: newVendor.specialty,
+        location: newVendor.location,
+        description: newVendor.description,
+        website: newVendor.website,
+        priceRange: newVendor.priceRange,
+        rating: 0,
+        reviewCount: 0,
+        availability: 'available',
+        portfolioImages: []
+      })
 
-    setVendors(prev => [...prev, vendor])
-    setNewVendor({
-      name: '', company: '', email: '', phone: '', specialty: '',
-      location: '', description: '', website: '', priceRange: '$$'
-    })
-    setShowVendorForm(false)
-    toast.success('Vendor added successfully!')
+      if (createdVendors && createdVendors.length > 0) {
+        setVendors(prev => [...prev, ...createdVendors])
+        setNewVendor({
+          name: '', company: '', email: '', phone: '', specialty: '',
+          location: '', description: '', website: '', priceRange: '$$'
+        })
+        setShowVendorForm(false)
+        toast.success('Vendor added successfully!')
+      }
+    } catch (error) {
+      console.error('Error creating vendor:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const updateVendorRating = (vendorId, newRating) => {
-    setVendors(prev => prev.map(vendor => {
-      if (vendor.id === vendorId) {
-        const totalRating = (vendor.rating * vendor.reviewCount) + newRating
-        const newReviewCount = vendor.reviewCount + 1
-        return {
-          ...vendor,
-          rating: totalRating / newReviewCount,
-          reviewCount: newReviewCount
+
+  const updateVendorRating = async (vendorId, newRating) => {
+    try {
+      await vendorService.updateVendorRating(vendorId, newRating)
+      // Reload vendors to get updated data
+      loadVendors()
+    } catch (err) {
+      console.error('Error updating vendor rating:', err)
+    }
+  }
+
+
+  const toggleVendorAvailability = async (vendorId) => {
+    try {
+      const vendor = vendors.find(v => v.id === vendorId)
+      if (!vendor) return
+
+      const newAvailability = vendor.availability === 'available' ? 'busy' : 'available'
+      await vendorService.updateAvailability(vendorId, newAvailability)
+      
+      setVendors(prev => prev.map(vendor => {
+        if (vendor.id === vendorId) {
+          return { ...vendor, availability: newAvailability }
         }
-      }
-      return vendor
-    }))
-    toast.success('Rating updated successfully!')
-  }
-
-  const toggleVendorAvailability = (vendorId) => {
-    setVendors(prev => prev.map(vendor => {
-      if (vendor.id === vendorId) {
-        const newAvailability = vendor.availability === 'available' ? 'busy' : 'available'
-        return { ...vendor, availability: newAvailability }
-      }
-      return vendor
-    }))
-    toast.success('Vendor availability updated!')
-  }
-
-  const deleteVendor = (vendorId) => {
-    if (window.confirm('Are you sure you want to delete this vendor?')) {
-      setVendors(prev => prev.filter(vendor => vendor.id !== vendorId))
-      toast.success('Vendor deleted successfully!')
+        return vendor
+      }))
+    } catch (err) {
+      console.error('Error updating vendor availability:', err)
     }
   }
+
+
+  const deleteVendor = async (vendorId) => {
+    if (window.confirm('Are you sure you want to delete this vendor?')) {
+      try {
+        await vendorService.deleteVendors(vendorId)
+        setVendors(prev => prev.filter(vendor => vendor.id !== vendorId))
+      } catch (err) {
+        console.error('Error deleting vendor:', err)
+      }
+    }
+  }
+
+  if (loading && vendors.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex items-center justify-center py-12"
+      >
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-3 text-surface-600">Loading vendors...</span>
+      </motion.div>
+    )
+  }
+
+  if (error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="text-center py-12"
+      >
+        <div className="text-red-600 mb-4">{error}</div>
+        <button
+          onClick={loadVendors}
+          className="btn-primary"
+        >
+          Try Again
+        </button>
+      </motion.div>
+    )
+  }
+
 
   return (
     <motion.div
@@ -273,10 +366,12 @@ const VendorsTab = () => {
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
                   <button
                     type="submit"
-                    className="btn-primary flex-1"
+                    disabled={loading}
+                    className="btn-primary flex-1 disabled:opacity-50"
                   >
-                    Add Vendor
+                    {loading ? 'Adding...' : 'Add Vendor'}
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setShowVendorForm(false)}

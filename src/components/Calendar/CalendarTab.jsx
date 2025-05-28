@@ -1,43 +1,141 @@
-import { useState, useMemo } from 'react'
-import { motion } from 'framer-motion'
-import { format, addDays, startOfWeek, startOfMonth, endOfMonth, addMonths, subMonths, isSameDay, isSameMonth, eachDayOfInterval } from 'date-fns'
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns'
+import { toast } from 'react-toastify'
 import ApperIcon from '../ApperIcon'
-import { useEventData } from '../../hooks/useEventData'
+import eventService from '../../services/eventService'
 import { statusColors } from '../../constants/colors'
 
-const CalendarTab = ({ setShowEventForm, setNewEvent, events, setEvents }) => {
-  const [selectedDate, setSelectedDate] = useState(new Date())
+const CalendarTab = ({ setShowEventForm, setNewEvent, events: propEvents, setEvents: setPropEvents }) => {
+  const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState(null)
+  const [showEventDetails, setShowEventDetails] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState(null)
 
+  // Load events on component mount
+  useEffect(() => {
+    loadEvents()
+  }, [])
 
-  // Calendar generation - Full month view
-  const calendarDays = useMemo(() => {
-    const start = startOfMonth(selectedDate)
-    const end = endOfMonth(selectedDate)
-    const startDate = startOfWeek(start)
-    const endDate = addDays(startOfWeek(addDays(end, 6)), 6)
-    
-    return eachDayOfInterval({
-      start: startDate,
-      end: endDate
-    })
-  }, [selectedDate])
-
-  const getEventsForDate = (date) => {
-    return events.filter(event => isSameDay(new Date(event.date), date))
+  const loadEvents = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const eventsData = await eventService.fetchEvents()
+      setEvents(eventsData)
+      // Also update parent component events if provided
+      if (setPropEvents) {
+        setPropEvents(eventsData)
+      }
+    } catch (err) {
+      setError('Failed to load events')
+      console.error('Error loading events:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleDateClick = (date) => {
-    const dateString = format(date, "yyyy-MM-dd'T'HH:mm")
-    setNewEvent(prev => ({ ...prev, date: dateString }))
-    setShowEventForm(true)
-  }
+  const monthStart = startOfMonth(currentDate)
+  const monthEnd = endOfMonth(currentDate)
+  const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
 
   const navigateMonth = (direction) => {
     if (direction === 'prev') {
-      setSelectedDate(subMonths(selectedDate, 1))
+      setCurrentDate(subMonths(currentDate, 1))
     } else {
-      setSelectedDate(addMonths(selectedDate, 1))
+      setCurrentDate(addMonths(currentDate, 1))
     }
+  }
+
+  const getEventsForDate = (date) => {
+    return events.filter(event => 
+      isSameDay(new Date(event.date), date)
+    )
+  }
+
+  const handleDateClick = (date) => {
+    setSelectedDate(date)
+    const dayEvents = getEventsForDate(date)
+    
+    if (dayEvents.length === 1) {
+      setSelectedEvent(dayEvents[0])
+      setShowEventDetails(true)
+    } else if (dayEvents.length > 1) {
+      // Show list of events for that day
+      setShowEventDetails(true)
+    } else {
+      // No events, create new event for this date
+      const dateString = format(date, 'yyyy-MM-dd')
+      setNewEvent(prev => ({ ...prev, date: dateString + 'T12:00' }))
+      setShowEventForm(true)
+    }
+  }
+
+  const handleEventClick = (event, e) => {
+    e.stopPropagation()
+    setSelectedEvent(event)
+    setShowEventDetails(true)
+  }
+
+  const updateEventStatus = async (eventId, status) => {
+    try {
+      const event = events.find(e => e.id === eventId)
+      if (!event) return
+
+      await eventService.updateEvents({
+        ...event,
+        status
+      })
+
+      setEvents(prev => prev.map(event => 
+        event.id === eventId ? { ...event, status } : event
+      ))
+      
+      if (setPropEvents) {
+        setPropEvents(prev => prev.map(event => 
+          event.id === eventId ? { ...event, status } : event
+        ))
+      }
+      
+      toast.success(`Event status updated to ${status}`)
+    } catch (err) {
+      console.error('Error updating event status:', err)
+      toast.error('Failed to update event status')
+    }
+  }
+
+  if (loading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex items-center justify-center py-12"
+      >
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-3 text-surface-600">Loading calendar...</span>
+      </motion.div>
+    )
+  }
+
+  if (error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="text-center py-12"
+      >
+        <div className="text-red-600 mb-4">{error}</div>
+        <button
+          onClick={loadEvents}
+          className="btn-primary"
+        >
+          Try Again
+        </button>
+      </motion.div>
+    )
   }
 
   return (
@@ -49,215 +147,215 @@ const CalendarTab = ({ setShowEventForm, setNewEvent, events, setEvents }) => {
     >
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <h3 className="text-2xl sm:text-3xl font-bold text-surface-900">Event Calendar</h3>
-        <div className="flex items-center space-x-4">
-          <button
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowEventForm(true)}
+          className="btn-primary inline-flex items-center space-x-2"
+        >
+          <ApperIcon name="Plus" className="w-5 h-5" />
+          <span>New Event</span>
+        </motion.button>
+      </div>
+
+      {/* Calendar Header */}
+      <div className="card-neu">
+        <div className="flex items-center justify-between mb-6">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => navigateMonth('prev')}
             className="p-2 hover:bg-surface-100 rounded-xl transition-colors"
           >
-            <ApperIcon name="ChevronLeft" className="w-5 h-5" />
-          </button>
-          <span className="font-semibold text-surface-900 min-w-[140px] text-center">
-            {format(selectedDate, 'MMMM yyyy')}
-          </span>
-          <button
+            <ApperIcon name="ChevronLeft" className="w-6 h-6" />
+          </motion.button>
+          
+          <h4 className="text-xl font-bold text-surface-900">
+            {format(currentDate, 'MMMM yyyy')}
+          </h4>
+          
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => navigateMonth('next')}
             className="p-2 hover:bg-surface-100 rounded-xl transition-colors"
           >
-            <ApperIcon name="ChevronRight" className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setSelectedDate(new Date())}
-            className="px-3 py-2 bg-primary/10 text-primary rounded-xl text-sm font-medium hover:bg-primary/20 transition-colors"
-          >
-            Today
-          </button>
+            <ApperIcon name="ChevronRight" className="w-6 h-6" />
+          </motion.button>
         </div>
-      </div>
 
-      <div className="card-neu">
-        {/* Calendar Header */}
-        <div className="grid grid-cols-7 gap-4 mb-4">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-            <div key={day} className="text-center font-semibold text-surface-700 py-2">
+        {/* Days of Week Header */}
+        <div className="grid grid-cols-7 gap-2 mb-4">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="text-center text-sm font-medium text-surface-600 py-2">
               {day}
             </div>
           ))}
         </div>
 
-        {/* Calendar Days */}
+        {/* Calendar Grid */}
         <div className="grid grid-cols-7 gap-2">
-          {calendarDays.map((day, index) => {
-            const dayEvents = getEventsForDate(day)
-            const isToday = isSameDay(day, new Date())
-            const isCurrentMonth = isSameMonth(day, selectedDate)
-            
+          {calendarDays.map((date, index) => {
+            const dayEvents = getEventsForDate(date)
+            const isCurrentMonth = isSameMonth(date, currentDate)
+            const isToday = isSameDay(date, new Date())
+            const isSelected = selectedDate && isSameDay(date, selectedDate)
+
             return (
               <motion.div
-                key={day.toISOString()}
+                key={index}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => handleDateClick(day)}
-                className={`min-h-20 sm:min-h-24 p-2 rounded-lg border transition-all duration-300 cursor-pointer relative ${
-                  isToday
-                    ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                    : dayEvents.length > 0
-                    ? 'border-primary/30 bg-primary/5 hover:border-primary/50'
-                    : isCurrentMonth
-                    ? 'border-surface-200 hover:border-primary/30 hover:bg-surface-50'
-                    : 'border-surface-100 bg-surface-25 text-surface-400'
-                }`}
+                onClick={() => handleDateClick(date)}
+                className={`
+                  min-h-[80px] p-2 border border-surface-200 rounded-xl cursor-pointer transition-all duration-300
+                  ${isCurrentMonth ? 'bg-white hover:bg-surface-50' : 'bg-surface-100 text-surface-400'}
+                  ${isToday ? 'ring-2 ring-primary bg-primary/5' : ''}
+                  ${isSelected ? 'bg-primary/10 border-primary' : ''}
+                `}
               >
-                <div className={`text-sm font-semibold mb-1 ${
-                  isToday 
-                    ? 'text-primary' 
-                    : isCurrentMonth 
-                    ? 'text-surface-900' 
-                    : 'text-surface-400'
+                <div className={`text-sm font-medium mb-1 ${
+                  isToday ? 'text-primary font-bold' : isCurrentMonth ? 'text-surface-900' : 'text-surface-400'
                 }`}>
-                  {format(day, 'd')}
+                  {format(date, 'd')}
                 </div>
                 
-                {/* Event indicators */}
                 <div className="space-y-1">
                   {dayEvents.slice(0, 2).map((event) => (
-                    <div
+                    <motion.div
                       key={event.id}
-                      className={`text-xs p-1 rounded truncate ${
-                        event.status === 'confirmed' 
-                          ? 'bg-green-100 text-green-800'
-                          : event.status === 'planning'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : event.status === 'completed'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                      title={`${event.name} - ${format(new Date(event.date), 'HH:mm')}`}
+                      whileHover={{ scale: 1.05 }}
+                      onClick={(e) => handleEventClick(event, e)}
+                      className={`
+                        text-xs px-2 py-1 rounded text-white truncate cursor-pointer
+                        ${event.status === 'confirmed' ? 'bg-green-500' :
+                          event.status === 'planning' ? 'bg-yellow-500' :
+                          event.status === 'completed' ? 'bg-blue-500' : 'bg-red-500'}
+                      `}
+                      title={event.name}
                     >
                       {event.name}
-                    </div>
+                    </motion.div>
                   ))}
                   
                   {dayEvents.length > 2 && (
-                    <div className="text-xs text-surface-600 text-center font-medium">
+                    <div className="text-xs text-surface-600 px-2">
                       +{dayEvents.length - 2} more
                     </div>
                   )}
-                  
-                  {dayEvents.length === 0 && isCurrentMonth && (
-                    <div className="text-xs text-surface-400 text-center pt-2">
-                      Click to add
-                    </div>
-                  )}
                 </div>
-                
-                {/* Event count badge */}
-                {dayEvents.length > 0 && (
-                  <div className="absolute top-1 right-1 w-5 h-5 bg-primary text-white text-xs rounded-full flex items-center justify-center font-bold">
-                    {dayEvents.length}
-                  </div>
-                )}
               </motion.div>
             )
           })}
         </div>
       </div>
 
-      {/* Calendar Legend and Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-        <div className="card-neu">
-          <h4 className="text-lg font-bold text-surface-900 mb-4">Calendar Legend</h4>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-green-100 border border-green-200 rounded"></div>
-              <span className="text-sm text-surface-700">Confirmed</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-yellow-100 border border-yellow-200 rounded"></div>
-              <span className="text-sm text-surface-700">Planning</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-blue-100 border border-blue-200 rounded"></div>
-              <span className="text-sm text-surface-700">Completed</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 bg-red-100 border border-red-200 rounded"></div>
-              <span className="text-sm text-surface-700">Cancelled</span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="card-neu">
-          <h4 className="text-lg font-bold text-surface-900 mb-4">This Month</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">
-                {events.filter(event => 
-                  isSameMonth(new Date(event.date), selectedDate)
-                ).length}
+      {/* Event Details Modal */}
+      <AnimatePresence>
+        {showEventDetails && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+            onClick={() => setShowEventDetails(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h4 className="text-2xl font-bold text-surface-900">
+                  {selectedEvent ? 'Event Details' : 'Events for ' + (selectedDate ? format(selectedDate, 'MMM dd, yyyy') : '')}
+                </h4>
+                <button
+                  onClick={() => setShowEventDetails(false)}
+                  className="p-2 hover:bg-surface-100 rounded-xl transition-colors"
+                >
+                  <ApperIcon name="X" className="w-6 h-6" />
+                </button>
               </div>
-              <div className="text-sm text-surface-600">Total Events</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {events.filter(event => 
-                  isSameMonth(new Date(event.date), selectedDate) && 
-                  event.status === 'confirmed'
-                ).length}
-              </div>
-              <div className="text-sm text-surface-600">Confirmed</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Upcoming Events */}
-      <div className="card-neu">
-        <h4 className="text-xl font-bold text-surface-900 mb-4">Upcoming Events</h4>
-        <div className="space-y-3">
-          {events
-            .filter(event => new Date(event.date) > new Date())
-            .sort((a, b) => new Date(a.date) - new Date(b.date))
-            .slice(0, 5)
-            .map((event) => (
-              <motion.div 
-                key={event.id} 
-                whileHover={{ scale: 1.02 }}
-                className="flex items-center justify-between p-4 bg-surface-50 rounded-xl hover:bg-surface-100 transition-colors cursor-pointer"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-xl flex items-center justify-center">
-                    <ApperIcon name="Calendar" className="w-6 h-6 text-primary" />
+              
+              {selectedEvent ? (
+                // Single event details
+                <div className="space-y-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h5 className="text-xl font-bold text-surface-900 mb-2">{selectedEvent.name}</h5>
+                      <p className="text-surface-600 mb-4">{selectedEvent.description}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${statusColors[selectedEvent.status]}`}>
+                      {selectedEvent.status}
+                    </span>
                   </div>
-                  <div>
-                    <h5 className="font-semibold text-surface-900">{event.name}</h5>
-                    <p className="text-sm text-surface-600">
-                      {format(new Date(event.date), 'MMM dd, yyyy • HH:mm')}
-                    </p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex items-center space-x-2 text-surface-600">
+                      <ApperIcon name="Calendar" className="w-5 h-5" />
+                      <span>{format(new Date(selectedEvent.date), 'MMM dd, yyyy • HH:mm')}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-surface-600">
+                      <ApperIcon name="MapPin" className="w-5 h-5" />
+                      <span>{selectedEvent.venue}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-surface-600">
+                      <ApperIcon name="Users" className="w-5 h-5" />
+                      <span>{selectedEvent.guestCount} guests</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-surface-600">
+                      <ApperIcon name="DollarSign" className="w-5 h-5" />
+                      <span>${selectedEvent.budget?.toLocaleString() || '0'}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-4">
+                    <label className="text-sm font-medium text-surface-700">Status:</label>
+                    <select
+                      value={selectedEvent.status}
+                      onChange={(e) => updateEventStatus(selectedEvent.id, e.target.value)}
+                      className="px-3 py-2 border border-surface-200 rounded-lg text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                    >
+                      <option value="planning">Planning</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
                   </div>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${statusColors[event.status]}`}>
-                    {event.status}
-                  </span>
-                  <ApperIcon name="ChevronRight" className="w-4 h-4 text-surface-400" />
+              ) : (
+                // Multiple events for selected date
+                <div className="space-y-4">
+                  {selectedDate && getEventsForDate(selectedDate).map((event) => (
+                    <div key={event.id} className="bg-surface-50 rounded-xl p-4 hover:bg-surface-100 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h5 className="font-semibold text-surface-900 mb-1">{event.name}</h5>
+                          <div className="flex items-center space-x-4 text-sm text-surface-600">
+                            <div className="flex items-center space-x-1">
+                              <ApperIcon name="Clock" className="w-4 h-4" />
+                              <span>{format(new Date(event.date), 'HH:mm')}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <ApperIcon name="MapPin" className="w-4 h-4" />
+                              <span>{event.venue}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${statusColors[event.status]}`}>
+                          {event.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </motion.div>
-            ))}
-          
-          {events.filter(event => new Date(event.date) > new Date()).length === 0 && (
-            <div className="text-center py-8">
-              <ApperIcon name="Calendar" className="w-12 h-12 text-surface-300 mx-auto mb-3" />
-              <p className="text-surface-600">No upcoming events</p>
-              <button
-                onClick={() => setShowEventForm(true)}
-                className="mt-4 text-primary hover:text-primary-dark transition-colors text-sm font-medium"
-              >
-                Create your first event
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

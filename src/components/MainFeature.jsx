@@ -8,7 +8,8 @@ import BudgetTab from './Budget/BudgetTab'
 import VendorsTab from './Vendors/VendorsTab'
 import PaymentsTab from './Payments/PaymentsTab'
 import CalendarTab from './Calendar/CalendarTab'
-import { useEventData } from '../hooks/useEventData'
+import eventService from '../services/eventService'
+
 
 const MainFeature = () => {
   const [activeTab, setActiveTab] = useState('events')
@@ -22,8 +23,9 @@ const MainFeature = () => {
     guestCount: ''
   })
 
-  const eventData = useEventData()
-  const { events, setEvents } = eventData
+  const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(false)
+
 
 
   const tabs = [
@@ -35,29 +37,39 @@ const MainFeature = () => {
     { id: 'calendar', label: 'Calendar', icon: 'CalendarDays' }
   ]
 
-  const handleCreateEvent = (e) => {
+  const handleCreateEvent = async (e) => {
     e.preventDefault()
     if (!newEvent.name || !newEvent.date || !newEvent.venue) {
       toast.error('Please fill in all required fields')
       return
     }
 
-    const event = {
-      ...newEvent,
-      id: Date.now().toString(),
-      status: 'planning',
-      createdAt: new Date(),
-      date: new Date(newEvent.date),
-      budget: parseFloat(newEvent.budget) || 0,
-      guestCount: parseInt(newEvent.guestCount) || 0,
-      tasks: []
-    }
+    setLoading(true)
+    try {
+      const createdEvents = await eventService.createEvents({
+        name: newEvent.name,
+        description: newEvent.description,
+        date: newEvent.date,
+        venue: newEvent.venue,
+        budget: newEvent.budget,
+        guestCount: newEvent.guestCount,
+        status: 'planning'
+      })
 
-    setEvents(prev => [...prev, event])
-    setNewEvent({ name: '', description: '', date: '', venue: '', budget: '', guestCount: '' })
-    setShowEventForm(false)
-    toast.success('Event created successfully!')
+      if (createdEvents && createdEvents.length > 0) {
+        setEvents(prev => [...prev, ...createdEvents])
+        setNewEvent({ name: '', description: '', date: '', venue: '', budget: '', guestCount: '' })
+        setShowEventForm(false)
+        toast.success('Event created successfully!')
+      }
+    } catch (error) {
+      console.error('Error creating event:', error)
+      toast.error('Failed to create event')
+    } finally {
+      setLoading(false)
+    }
   }
+
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -190,22 +202,25 @@ const MainFeature = () => {
                     />
                   </div>
                 </div>
+                </div>
+
                 
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
                   <button
                     type="submit"
-                    className="btn-primary flex-1"
+                    disabled={loading}
+                    className="btn-primary flex-1 disabled:opacity-50 flex items-center justify-center space-x-2"
                   >
-                    Create Event
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Creating...</span>
+                      </>
+                    ) : (
+                      <span>Create Event</span>
+                    )}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowEventForm(false)}
-                    className="btn-secondary flex-1"
-                  >
-                    Cancel
-                  </button>
-                </div>
+
               </form>
             </motion.div>
           </motion.div>

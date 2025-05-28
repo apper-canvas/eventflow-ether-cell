@@ -1,30 +1,32 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import { toast } from 'react-toastify'
 import ApperIcon from '../ApperIcon'
-import { usePaymentData } from '../../hooks/usePaymentData'
-import { useEventData } from '../../hooks/useEventData'
+import paymentService from '../../services/paymentService'
+import eventService from '../../services/eventService'
 import { paymentStatusColors, paymentTypeColors, paymentDirectionColors } from '../../constants/colors'
 
 
+
 const PaymentsTab = () => {
-  const { events } = useEventData()
-  const {
-    payments,
-    setPayments,
-    paymentSearch,
-    setPaymentSearch,
-    paymentFilter,
-    setPaymentFilter,
-    filteredPayments,
-    getTotalRevenue,
-    getTotalExpenses,
-    getOutstandingPayments,
-    getOverduePayments,
-    receivePayment,
-    makeVendorPayment
-  } = usePaymentData()
+  const [payments, setPayments] = useState([])
+  const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [paymentSearch, setPaymentSearch] = useState('')
+  const [paymentFilter, setPaymentFilter] = useState({
+    type: '',
+    status: '',
+    eventId: ''
+  })
+  const [analytics, setAnalytics] = useState({
+    totalRevenue: 0,
+    totalExpenses: 0,
+    outstandingPayments: 0,
+    overdueCount: 0
+  })
+
 
 
   const [showPaymentForm, setShowPaymentForm] = useState(false)
@@ -38,6 +40,7 @@ const PaymentsTab = () => {
     vendorName: '',
     paymentMethod: ''
   })
+
   const [showReceivePayment, setShowReceivePayment] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -63,55 +66,131 @@ const PaymentsTab = () => {
   })
   const [isMakingPayment, setIsMakingPayment] = useState(false)
 
+  // Load events and payments on component mount
+  useEffect(() => {
+    loadEvents()
+    loadPayments()
+  }, [])
 
-  const handleCreatePayment = (e) => {
+  const loadEvents = async () => {
+    try {
+      const eventsData = await eventService.fetchEvents()
+      setEvents(eventsData)
+    } catch (err) {
+      console.error('Error loading events:', err)
+    }
+  }
+
+  const loadPayments = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const paymentsData = await paymentService.fetchPayments()
+      setPayments(paymentsData)
+      
+      // Load analytics
+      const analyticsData = await paymentService.getPaymentAnalytics()
+      setAnalytics(analyticsData)
+    } catch (err) {
+      setError('Failed to load payments')
+      console.error('Error loading payments:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredPayments = payments.filter(payment => {
+    const matchesSearch = payment.description.toLowerCase().includes(paymentSearch.toLowerCase()) ||
+                         (payment.clientName && payment.clientName.toLowerCase().includes(paymentSearch.toLowerCase())) ||
+                         (payment.vendorName && payment.vendorName.toLowerCase().includes(paymentSearch.toLowerCase())) ||
+                         (payment.invoiceNumber && payment.invoiceNumber.toLowerCase().includes(paymentSearch.toLowerCase()))
+    
+    const matchesType = !paymentFilter.type || payment.type === paymentFilter.type
+    const matchesStatus = !paymentFilter.status || payment.status === paymentFilter.status
+    const matchesEvent = !paymentFilter.eventId || payment.eventId === paymentFilter.eventId
+    
+    return matchesSearch && matchesType && matchesStatus && matchesEvent
+  })
+
+
+
+  const handleCreatePayment = async (e) => {
     e.preventDefault()
     if (!newPayment.eventId || !newPayment.amount || !newPayment.description || !newPayment.dueDate) {
       toast.error('Please fill in all required fields')
       return
     }
 
-    const payment = {
-      ...newPayment,
-      id: Date.now().toString(),
-      amount: parseFloat(newPayment.amount),
-      status: 'pending',
-      paidDate: null,
-      paymentMethod: newPayment.paymentMethod || null,
-      createdAt: new Date(),
-      dueDate: new Date(newPayment.dueDate),
-      invoiceNumber: newPayment.type === 'client' ? `INV-${new Date().getFullYear()}-${String(payments.length + 1).padStart(3, '0')}` : null
-    }
+    setLoading(true)
+    try {
+      const createdPayments = await paymentService.createPayments({
+        eventId: newPayment.eventId,
+        type: newPayment.type,
+        amount: newPayment.amount,
+        description: newPayment.description,
+        dueDate: newPayment.dueDate,
+        clientName: newPayment.clientName,
+        vendorName: newPayment.vendorName,
+        paymentMethod: newPayment.paymentMethod
+      })
 
-    setPayments(prev => [...prev, payment])
-    setNewPayment({
-      eventId: '', type: 'client', amount: '', description: '', dueDate: '',
-      clientName: '', vendorName: '', paymentMethod: ''
-    })
-    setShowPaymentForm(false)
-    toast.success('Payment record created successfully!')
-  }
-
-  const updatePaymentStatus = (paymentId, status) => {
-    setPayments(prev => prev.map(payment => {
-      if (payment.id === paymentId) {
-        return {
-          ...payment,
-          status,
-          paidDate: status === 'paid' ? new Date() : null
-        }
+      if (createdPayments && createdPayments.length > 0) {
+        setPayments(prev => [...prev, ...createdPayments])
+        setNewPayment({
+          eventId: '', type: 'client', amount: '', description: '', dueDate: '',
+          clientName: '', vendorName: '', paymentMethod: ''
+        })
+        setShowPaymentForm(false)
+        // Reload analytics
+        const analyticsData = await paymentService.getPaymentAnalytics()
+        setAnalytics(analyticsData)
       }
-      return payment
-    }))
-    toast.success(`Payment status updated to ${status}`)
-  }
-
-  const deletePayment = (paymentId) => {
-    if (window.confirm('Are you sure you want to delete this payment record?')) {
-      setPayments(prev => prev.filter(payment => payment.id !== paymentId))
-      toast.success('Payment record deleted successfully!')
+    } catch (error) {
+      console.error('Error creating payment:', error)
+    } finally {
+      setLoading(false)
     }
   }
+
+
+  const updatePaymentStatus = async (paymentId, status) => {
+    try {
+      await paymentService.updatePaymentStatus(paymentId, status)
+      setPayments(prev => prev.map(payment => {
+        if (payment.id === paymentId) {
+          return {
+            ...payment,
+            status,
+            paidDate: status === 'paid' ? new Date() : null
+          }
+        }
+        return payment
+      }))
+      
+      // Reload analytics
+      const analyticsData = await paymentService.getPaymentAnalytics()
+      setAnalytics(analyticsData)
+    } catch (err) {
+      console.error('Error updating payment status:', err)
+    }
+  }
+
+
+  const deletePayment = async (paymentId) => {
+    if (window.confirm('Are you sure you want to delete this payment record?')) {
+      try {
+        await paymentService.deletePayments(paymentId)
+        setPayments(prev => prev.filter(payment => payment.id !== paymentId))
+        
+        // Reload analytics
+        const analyticsData = await paymentService.getPaymentAnalytics()
+        setAnalytics(analyticsData)
+      } catch (err) {
+        console.error('Error deleting payment:', err)
+      }
+    }
+  }
+
 
   const handleReceivePayment = (payment) => {
     if (payment.type !== 'client') {
@@ -146,10 +225,11 @@ const PaymentsTab = () => {
 
     setIsProcessing(true)
     try {
-      const result = await receivePayment(
+      const result = await paymentService.processPaymentReceiving(
         selectedPayment.id,
         receivePaymentData.paymentMethod,
         {
+          amount: parseFloat(receivePaymentData.amount),
           cardNumber: receivePaymentData.cardNumber.slice(-4),
           cardholderName: receivePaymentData.cardholderName,
           notes: receivePaymentData.notes
@@ -168,6 +248,9 @@ const PaymentsTab = () => {
         amount: '',
         notes: ''
       })
+      
+      // Reload payments and analytics
+      loadPayments()
     } catch (error) {
       toast.error(error.message || 'Failed to process payment')
     } finally {
@@ -176,13 +259,14 @@ const PaymentsTab = () => {
   }
 
 
+
   const processMakePayment = async (e) => {
     e.preventDefault()
     if (!selectedPayment) return
 
     setIsMakingPayment(true)
     try {
-      const result = await makeVendorPayment(
+      const result = await paymentService.processVendorPayment(
         selectedPayment.id,
         makePaymentData.paymentMethod,
         {
@@ -206,12 +290,47 @@ const PaymentsTab = () => {
         amount: '',
         notes: ''
       })
+      
+      // Reload payments and analytics
+      loadPayments()
     } catch (error) {
       toast.error(error.message || 'Failed to process vendor payment')
     } finally {
       setIsMakingPayment(false)
     }
   }
+
+  if (loading && payments.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex items-center justify-center py-12"
+      >
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-3 text-surface-600">Loading payments...</span>
+      </motion.div>
+    )
+  }
+
+  if (error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="text-center py-12"
+      >
+        <div className="text-red-600 mb-4">{error}</div>
+        <button
+          onClick={loadPayments}
+          className="btn-primary"
+        >
+          Try Again
+        </button>
+      </motion.div>
+    )
+  }
+
 
 
   return (
@@ -241,17 +360,17 @@ const PaymentsTab = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           className="card-neu"
-        >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-surface-600 mb-1">Revenue (Received)</p>
-              <p className="text-2xl font-bold text-green-600">${getTotalRevenue().toLocaleString()}</p>
+              <p className="text-sm font-medium text-surface-600">Total Revenue</p>
+              <p className="text-2xl font-bold text-green-600">${analytics.totalRevenue.toLocaleString()}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
               <ApperIcon name="TrendingUp" className="w-6 h-6 text-green-600" />
             </div>
           </div>
         </motion.div>
+
         
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -261,9 +380,10 @@ const PaymentsTab = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-surface-600 mb-1">Expenses (Paid)</p>
-              <p className="text-2xl font-bold text-orange-600">${getTotalExpenses().toLocaleString()}</p>
+              <p className="text-sm font-medium text-surface-600">Total Expenses</p>
+              <p className="text-2xl font-bold text-orange-600">${analytics.totalExpenses.toLocaleString()}</p>
             </div>
+
             <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
               <ApperIcon name="TrendingDown" className="w-6 h-6 text-orange-600" />
             </div>
@@ -278,9 +398,10 @@ const PaymentsTab = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-surface-600 mb-1">Outstanding</p>
-              <p className="text-2xl font-bold text-yellow-600">${getOutstandingPayments().toLocaleString()}</p>
+              <p className="text-sm font-medium text-surface-600">Outstanding Payments</p>
+              <p className="text-2xl font-bold text-yellow-600">${analytics.outstandingPayments.toLocaleString()}</p>
             </div>
+
             <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
               <ApperIcon name="Clock" className="w-6 h-6 text-yellow-600" />
             </div>
@@ -295,9 +416,10 @@ const PaymentsTab = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-surface-600 mb-1">Overdue Payments</p>
-              <p className="text-2xl font-bold text-red-600">{getOverduePayments().length}</p>
+              <p className="text-sm font-medium text-surface-600">Overdue Payments</p>
+              <p className="text-2xl font-bold text-red-600">{analytics.overdueCount}</p>
             </div>
+
             <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
               <ApperIcon name="AlertTriangle" className="w-6 h-6 text-red-600" />
             </div>
@@ -517,9 +639,12 @@ const PaymentsTab = () => {
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
                   <button
                     type="submit"
-                    className="btn-primary flex-1"
->                    {newPayment.type === 'client' ? 'Create Client' : 'Create Vendor'} Payment
+                    disabled={loading}
+                    className="btn-primary flex-1 disabled:opacity-50"
+                  >
+                    {loading ? 'Creating...' : `${newPayment.type === 'client' ? 'Create Client' : 'Create Vendor'} Payment`}
                   </button>
+
 
                   <button
                     type="button"
