@@ -1919,6 +1919,9 @@ const MainFeature = () => {
               </div>
             )}
           </motion.div>
+        )}
+
+
         {/* Payments Tab */}
         {activeTab === 'payments' && (
           <motion.div
