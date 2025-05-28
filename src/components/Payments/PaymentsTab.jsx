@@ -96,7 +96,8 @@ const PaymentsTab = () => {
     if (window.confirm('Are you sure you want to delete this payment record?')) {
       setPayments(prev => prev.filter(payment => payment.id !== paymentId))
       toast.success('Payment record deleted successfully!')
-  }
+    }
+
   }
 
 
@@ -410,9 +411,12 @@ const PaymentsTab = () => {
               </form>
             </motion.div>
           </motion.div>
+          </motion.div>
+        </motion.div>
       </AnimatePresence>
 
-        )}
+      </AnimatePresence>
+
 
 
       {/* Receive Payment Modal */}
