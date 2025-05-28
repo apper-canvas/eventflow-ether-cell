@@ -22,7 +22,9 @@ const MainFeature = () => {
     guestCount: ''
   })
 
-  const { events, setEvents } = useEventData()
+  const eventData = useEventData()
+  const { events, setEvents } = eventData
+
 
   const tabs = [
     { id: 'events', label: 'Events', icon: 'Calendar' },
@@ -241,8 +243,11 @@ const MainFeature = () => {
             key="calendar"
             setShowEventForm={setShowEventForm}
             setNewEvent={setNewEvent}
+            events={events}
+            setEvents={setEvents}
           />
         )}
+
       </AnimatePresence>
     </div>
   )

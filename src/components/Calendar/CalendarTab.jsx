@@ -5,9 +5,9 @@ import ApperIcon from '../ApperIcon'
 import { useEventData } from '../../hooks/useEventData'
 import { statusColors } from '../../constants/colors'
 
-const CalendarTab = ({ setShowEventForm, setNewEvent }) => {
-  const { events } = useEventData()
+const CalendarTab = ({ setShowEventForm, setNewEvent, events, setEvents }) => {
   const [selectedDate, setSelectedDate] = useState(new Date())
+
 
   // Calendar generation - Full month view
   const calendarDays = useMemo(() => {
