@@ -20,9 +20,9 @@ const PaymentsTab = () => {
     getTotalRevenue,
     getOutstandingPayments,
     getOverduePayments,
-
-
+    receivePayment
   } = usePaymentData()
+
   
   const [showPaymentForm, setShowPaymentForm] = useState(false)
   const [newPayment, setNewPayment] = useState({
@@ -98,6 +98,7 @@ const PaymentsTab = () => {
       toast.success('Payment record deleted successfully!')
   }
   }
+
 
 
 
@@ -408,7 +409,8 @@ const PaymentsTab = () => {
               </form>
             </motion.div>
           </motion.div>
-      </motion.div>
+        )}
+
 
       {/* Receive Payment Modal */}
       <AnimatePresence>
