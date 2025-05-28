@@ -173,6 +173,8 @@ const PaymentsTab = () => {
     } finally {
       setIsProcessing(false)
     }
+  }
+
 
   const processMakePayment = async (e) => {
     e.preventDefault()
@@ -433,9 +435,10 @@ const PaymentsTab = () => {
                       <option value="client">Client Payment (Incoming)</option>
                       <option value="vendor">Vendor Payment (Outgoing)</option>
 
-                  </div>
+                    </select>
 
                   </div>
+
                   
                   <div>
                     <label className="block text-sm font-medium text-surface-700 mb-2">
@@ -493,8 +496,9 @@ const PaymentsTab = () => {
                     />
                   </div>
                 )}
-
                 </div>
+
+
                 
                 <div>
                   <label className="block text-sm font-medium text-surface-700 mb-2">
