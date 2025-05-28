@@ -71,9 +71,8 @@ const MainFeature = () => {
     { id: '2', eventId: '1', category: 'Catering', allocatedAmount: 15000, spentAmount: 12000 },
     { id: '3', eventId: '1', category: 'Marketing', allocatedAmount: 8000, spentAmount: 5500 },
     { id: '4', eventId: '1', category: 'Entertainment', allocatedAmount: 7000, spentAmount: 0 },
-    { id: '4', eventId: '1', category: 'Entertainment', allocatedAmount: 7000, spentAmount: 0 }
-
   ])
+
 
   const [vendors, setVendors] = useState([
     {
@@ -1040,6 +1039,10 @@ const MainFeature = () => {
                   ))}
               </div>
             </div>
+          </motion.div>
+        )}
+
+
 
 
         {/* Vendors Tab */}
@@ -1583,6 +1586,8 @@ const MainFeature = () => {
               </div>
             )}
           </motion.div>
+        )}
+
         )}
 
       </AnimatePresence>
