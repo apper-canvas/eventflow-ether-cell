@@ -30,7 +30,8 @@ const Dashboard = () => {
       totalRevenue,
       outstandingAmount
     }
-  }, [events, getTotalRevenue, getOutstandingPayments])
+  }, [events])
+
 
   // Upcoming Events (Next 5)
   const upcomingEvents = useMemo(() => {
