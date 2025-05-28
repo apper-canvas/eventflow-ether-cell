@@ -23,6 +23,7 @@ const Dashboard = () => {
     const outstandingAmount = getOutstandingPayments()
 
 
+
     return {
       totalEvents,
       activeEvents,
