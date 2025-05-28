@@ -2137,6 +2137,8 @@ const MainFeature = () => {
                   </div>
                 </div>
               </motion.div>
+              </motion.div>
+
             </div>
 
             {/* Payment Method Analytics */}
@@ -2565,9 +2567,6 @@ const MainFeature = () => {
               )}
             </AnimatePresence>
 
-
-              )}
-            </AnimatePresence>
 
             {/* Refund Dialog */}
             <AnimatePresence>
