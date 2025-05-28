@@ -10,7 +10,8 @@ import { statusColors, paymentStatusColors, priorityColors } from '../constants/
 
 const Dashboard = () => {
   const { events } = useEventData()
-  const { payments, getTotalRevenue, getOutstandingPayments, filteredPayments } = usePaymentData()
+  const { payments, getTotalRevenue, getOutstandingPayments } = usePaymentData()
+
 
   // Quick Stats Calculations
   const quickStats = useMemo(() => {
