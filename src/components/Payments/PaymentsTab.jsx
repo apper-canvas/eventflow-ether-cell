@@ -1241,3 +1241,6 @@ const PaymentsTab = () => {
 }
 
 export default PaymentsTab
+}
+
+export default PaymentsTab
